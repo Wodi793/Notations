@@ -2195,6 +2195,16 @@ Object.assign(ACT, {
       const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
       if (dl) { await dl.save({ filename: name, data }); return toast('Backup saved.'); }
     } catch (err) { if (err && err.code === 'declined') return; }
+    // Outside Claude (the installed Home Screen app): hand the file to the share sheet, or download it.
+    if (!window.claude) {
+      try {
+        const file = new File([data], name, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return toast('Backup handed over. Choose Save to Files to keep it.'); }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        return toast('Backup downloaded.');
+      } catch (err) { if (err && err.name === 'AbortError') return; }
+    }
     $('#bkArea').innerHTML = `<p class="note">Saving a file is not available in this view. Copy the text below and keep it somewhere safe; paste it back here to restore.</p><textarea id="bkText" readonly aria-label="Backup text">${esc(data)}</textarea><div class="row">${pill('Copy', 'bkcopy', '', 'primary')}<span class="grow"></span></div>`;
   },
   bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Backup copied.'), () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
