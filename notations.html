@@ -252,7 +252,7 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
    the TESTS block is the parity suite for that port. */
 const Engine = (function () {
   'use strict';
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
 
   /* ───────────── 1. Notes ───────────── */
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -595,10 +595,11 @@ const Engine = (function () {
   const NO_OCTS = [];
   function voicingOf(P, fr) {
     const mains = [], multi = [];
-    let octs = NO_OCTS, mask = 0;
+    let octs = NO_OCTS, mask = 0, pos = 0;
     for (let c = 0; c < P.n; c++) {
       const f = fr[c];
       if (f < 0) continue;
+      if (f > 0 && (pos === 0 || f < pos)) pos = f;
       const o = f === 0 ? P.open[c] : P.fret[c][f];
       if (!o) continue;
       insert(mains, o.main); mask |= o.pcm;
@@ -608,7 +609,7 @@ const Engine = (function () {
     }
     let all = multi;
     for (let i = 1; i < multi.length; i++) if (multi[i] === multi[i - 1]) { all = multi.filter((p, k) => k === 0 || p !== multi[k - 1]); break; }
-    return { mains, all, multi, octs, mask };
+    return { mains, all, multi, octs, mask, pos };
   }
 
   // Fingers, barre, span and position of a fingering.
@@ -636,9 +637,9 @@ const Engine = (function () {
 
   /* ───────────── 4. Scoring ───────────── */
   const DEFAULT_WEIGHTS = {
-    topOctave: 8, topDifferent: 40, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
+    topOctave: 8, topDifferent: 25, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
     registerPerSemitone: 1, registerCap: 30, lowMud: 6, doubledThird: 6, doubledColour: 8,
-    rootMissing: 4, fifthMissing: 1, definingLost: 60, tieWindow: 3, easeWeight: 2,
+    rootMissing: 4, fifthMissing: 1, highPosition: 2, definingLost: 60, tieWindow: 3, easeWeight: 2,
   };
   const WEIGHT_INFO = {
     topOctave: ['Top note moved an octave', 'per octave'],
@@ -647,25 +648,30 @@ const Engine = (function () {
     colourMissing: ['Colour tone missing', 'each'],
     rubLost: ['Rub lost', 'each'],
     bassMissing: ['Bass missing', ''],
-    registerPerSemitone: ['Register shift', 'per semitone'],
+    registerPerSemitone: ['Register shift', 'per semitone, averaged over the notes'],
     registerCap: ['Register shift, most it can cost', ''],
     lowMud: ['Low mud', 'each'],
     doubledThird: ['Doubled 3rd', ''],
     doubledColour: ['Doubled colour tone', ''],
     rootMissing: ['Root missing', ''],
     fifthMissing: ['5th missing', ''],
+    highPosition: ['High position', 'per fret above 12'],
     definingLost: ['Defining tone lost (rule relaxed)', 'each'],
     tieWindow: ['Tie window where difficulty decides', 'points'],
     easeWeight: ['Prefer easier: points per difficulty step', ''],
   };
-  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing'];
+  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing', 'highPosition'];
   const DEFAULT_OPTIONS = { comfortMm: 105, impossibleMm: 135, preferEasier: false, maxResults: 4, ranked: 0 };
 
   // Source and result pitches paired in sorted order: lowest with lowest,
   // highest with highest, the rest spread evenly across the longer list.
+  // The result is the average movement per paired note, so a fuller voicing is not charged for having more notes.
   function registerShift(src, res) {
     const m = src.length, n = res.length;
     if (!m || !n) return 0;
+    return registerSum(src, res, m, n) / Math.min(m, n);
+  }
+  function registerSum(src, res, m, n) {
     let sum = 0;
     if (m <= n) for (let i = 0; i < m; i++) { const j = m === 1 ? n - 1 : Math.round((i * (n - 1)) / (m - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
     else for (let j = 0; j < n; j++) { const i = n === 1 ? m - 1 : Math.round((j * (m - 1)) / (n - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
@@ -723,7 +729,7 @@ const Engine = (function () {
     if (semis > 0) {
       const raw = semis * W.registerPerSemitone, capped = Math.min(raw, W.registerCap);
       s += capped;
-      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
+      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement per note${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
     }
     // low mud: mud the source already had is part of its sound, so only new mud is charged
     for (let i = 0; i + 1 < all.length && all[i] < 55; i++) {
@@ -741,6 +747,8 @@ const Engine = (function () {
     }
     if (!((mask >> A.rootPc) & 1)) { s += W.rootMissing; if (bd && W.rootMissing > 0) add('Root missing', 'rootMissing', W.rootMissing, `no ${A.rootName}`); }
     if (A.fifthPc != null && !((mask >> A.fifthPc) & 1)) { s += W.fifthMissing; if (bd && W.fifthMissing > 0) add('5th missing', 'fifthMissing', W.fifthMissing, `no ${role[A.fifthPc].name}`); }
+    // high position: fretted notes far up the neck sound shorter and duller than the same pitches lower down
+    if (V.pos > 12) { const pts = (V.pos - 12) * W.highPosition; s += pts; if (bd && pts > 0) add('High position', 'highPosition', pts, `the hand sits at fret ${V.pos}, ${V.pos - 12} above the 12th`); }
     return { score: r2(s), breakdown: bd };
   }
 
@@ -1012,7 +1020,7 @@ const Engine = (function () {
   function finishPiano(A, W, c) {
     const ps = c.pitches, hands = splitHands(ps);
     let mask = 0; for (const p of ps) mask |= 1 << mod12(p);
-    const V = { mains: ps, all: ps, multi: ps, octs: [], mask };
+    const V = { mains: ps, all: ps, multi: ps, octs: [], mask, pos: 0 };
     const tier = tierOf(A, V), sc = scoreVoicing(A, V, W, true), comp = compromiseOf(A, V, sc.breakdown, tier);
     const parts = [{ label: `${ps.length} notes`, value: ps.length > 8 ? 3 : ps.length > 5 ? 2 : 1 }];
     const span = hands ? hands.maxSpan : 24;
@@ -1171,7 +1179,7 @@ const Engine = (function () {
     'top note': ['topOctave', 'topDifferent', 'octaveOverTop'],
     'fuller': ['rootMissing', 'fifthMissing', 'bassMissing', 'colourMissing'],
     'the rub': ['rubLost'],
-    'smoother': ['registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour'],
+    'smoother': ['registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'highPosition'],
     'easier': ['tieWindow'],
   };
   const TASTE_PHRASE = {
@@ -1187,6 +1195,7 @@ const Engine = (function () {
     doubledColour: ['you avoid doubling colour tones', "you don't mind doubled colour tones"],
     rootMissing: ['you keep the root', 'you drop the root freely'],
     fifthMissing: ['you keep the 5th', 'you drop the 5th freely'],
+    highPosition: ['you stay below the 12th fret', 'you are happy high up the neck'],
     tieWindow: ['you take the easier shape when two are close', 'you take the closer sound even when it is harder'],
   };
   function tasteNotes(taste, minPicks, threshold) {
