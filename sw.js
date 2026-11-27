@@ -1,0 +1,30 @@
+/* Offline support for the Home Screen app. Caches the app shell under a versioned name; tools/build-artifact.js
+   stamps VERSION from the files' contents, so any change to the app produces a new cache and an update offer. */
+const VERSION = 'f5492a2456';
+const CACHE = 'notations-' + VERSION;
+const SHELL = [
+  './', 'index.html', 'manifest.webmanifest', 'css/app.css',
+  'js/engine.js', 'js/util.js', 'js/storage.js', 'js/sound.js', 'js/app.js', 'js/sheets.js', 'js/boot.js',
+  'tests/lab-cases.json', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon-32.png',
+];
+const FONTS = 'notations-fonts';
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); });
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('notations-') && k !== CACHE && k !== FONTS).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+});
+// A new version waits until the page asks for it, so nothing reloads mid-use.
+self.addEventListener('message', (e) => { if (e.data && e.data.type === 'skipWaiting') self.skipWaiting(); });
+self.addEventListener('fetch', (e) => {
+  const req = e.request, url = new URL(req.url);
+  if (req.method !== 'GET') return;
+  if (url.origin === location.origin) {
+    // App files: from the cache first, so the app opens offline; anything not cached falls back to the network.
+    e.respondWith(caches.match(req, { ignoreSearch: true }).then((hit) => hit || (req.mode === 'navigate' ? caches.match('index.html') : null)).then((hit) => hit || fetch(req)));
+  } else if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    // Fonts: serve what is cached, refresh it in the background.
+    e.respondWith(caches.open(FONTS).then((c) => c.match(req).then((hit) => {
+      const net = fetch(req).then((res) => { c.put(req, res.clone()); return res; }).catch(() => hit);
+      return hit || net;
+    })));
+  }
+});

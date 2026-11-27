@@ -1,9 +1,9 @@
 // Parity suite: records the engine's exact output on a fixed set of inputs, then checks every later
 // build against it. A Swift port must reproduce the same file.
-// Usage: node test/parity.js          compare against test/parity-golden.json
-//        node test/parity.js --update  rewrite the golden file (only when a change is intended)
+// Usage: node tests/parity.js          compare against tests/parity-golden.json
+//        node tests/parity.js --update  rewrite the golden file (only when a change is intended)
 const fs = require('fs'), path = require('path');
-const ENGINE = process.env.ENGINE || path.join(__dirname, '../src/engine.js');
+const ENGINE = process.env.ENGINE || path.join(__dirname, '../js/engine.js');
 const E = require(ENGINE);
 const GOLDEN = path.join(__dirname, 'parity-golden.json');
 const P = (s) => E.parseNotes(s);
@@ -48,7 +48,7 @@ function run() {
     out.capos[v + ' > suggest'] = s ? s.label + ' ' + s.from + '>' + s.to : null;
   }
   // 4. The Lab set.
-  const TESTS = require('./../src/tests.js');
+  const TESTS = require('./lab-cases.json').cases.map((t) => Object.assign({ status: 'provisional', capos: [] }, t));
   const find = (id) => (id === 'piano' ? E.PIANO : preset(id));
   for (const tc of TESTS) {
     const t = Object.assign({}, tc); if (t.capoFret) t.capos = [E.fullCapo(find(t.target), t.capoFret)];

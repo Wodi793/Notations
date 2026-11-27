@@ -2,6 +2,12 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
 <style>
+/* Base: true black page, safe areas padded top and bottom, no browser margins. */
+html { box-sizing: border-box; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); background: #000; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
 /* Layout: two equal strips mirrored around a bridge band; black ground, one green ramp where brightness = importance. */
 :root {
   color-scheme: dark;
@@ -186,10 +192,12 @@ table.bd tr.hit td:first-child { color: var(--accent); }
 .short { display: none; }
 @media (max-width: 599px) { .short { display: inline; } }
 label.pill { display: inline-flex; align-items: center; cursor: pointer; }
+.buildtag { font-family: var(--sans); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; vertical-align: 3px; margin-left: 6px; }
 </style>
+
 <div id="app" class="roomy">
   <header class="bar">
-    <div class="brand">Notations</div>
+    <div class="brand">Notations <span class="buildtag" id="buildTag" hidden>Test build</span></div>
     <div class="chips">
       <button class="chip" data-act="instr" data-side="src" aria-label="Choose source instrument"><span id="chipSrc"></span></button>
       <button class="iconbtn" data-act="swap" aria-label="Swap source and target"><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4-4-4 4 4 4"/></svg></button>
@@ -245,14 +253,16 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 </aside>
 <div class="toast" id="toast" role="status"></div>
 
+<script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = [{"id":"s01","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"mandolin","accept":[[5,2,3,3],[0,2,3,3],[-1,2,3,3]],"note":"G should stay on top. The usual shapes put it on the E course."},{"id":"s02","name":"Cmaj7, B on top","source":{"kind":"piano","notes":"C4 E4 G4 B4"},"target":"mandolin","accept":[[5,2,2,-1],[5,5,7,7],[0,2,2,-1]],"note":"Root, 3rd and 7th with B on top, or the four-course shape an octave up."},{"id":"s03","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"mandolin","accept":[[0,0,2,1],[0,3,2,1]],"note":"The open G7. F has to move up an octave."},{"id":"s04","name":"D7♯9","source":{"kind":"piano","notes":"D3 F#3 C4 F4"},"target":"mandolin","accept":[[7,4,3,1],[-1,4,3,1]],"note":"The whole voicing an octave up, or 3, ♭7, ♯9 without the root."},{"id":"s05","name":"Am7, 9th on top","source":{"kind":"piano","notes":"A3 C4 E4 G4 B4"},"target":"mandolin","accept":[[5,5,2,-1],[2,5,3,7],[5,5,7,7]],"note":"Five notes on four courses: the root or the 5th has to go, the 9th stays."},{"id":"s06","name":"F/A","source":{"kind":"piano","notes":"A3 C4 F4"},"target":"mandolin","accept":[[2,3,3,1],[2,3,3,-1],[2,3,0,1]],"note":"A on the bottom comes first."},{"id":"s07","name":"C/E","source":{"kind":"piano","notes":"E4 G4 C5"},"target":"mandolin","accept":[[9,5,3,-1]],"note":"Playable at pitch."},{"id":"s08","name":"F triad, C on top","source":{"kind":"piano","notes":"F4 A4 C5"},"target":"uke","accept":[[2,0,1,3],[2,-1,1,3],[5,5,5,3]],"note":"The everyday F with a high C. The open C string sits below the source."},{"id":"s09","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"uke","accept":[[0,0,0,-1],[0,0,0,3]],"note":"Three open strings give the exact pitches."},{"id":"s10","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"uke-lowg","accept":[[0,2,1,2]],"note":"The standard G7 shape, low G on the bottom. It puts B on top, not F."},{"id":"s11","name":"Open G","source":{"kind":"strings","instrument":"guitar","fingering":[3,2,0,0,0,3]},"target":"mandolin","accept":[[0,0,2,3],[7,5,2,3]],"note":"Open G, or the chop shape."},{"id":"s12","name":"E7 shape","source":{"kind":"strings","instrument":"guitar","fingering":[0,2,0,1,0,0]},"target":"mandolin","accept":[[1,0,2,0]],"note":"The standard mandolin E7. G♯ ends up on the bottom."},{"id":"s13","name":"Open Cadd9","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,3,3]},"target":"mandolin","accept":[[5,2,5,3],[0,2,5,3]],"note":"Root, 3rd, 9th, 5th with G on top."},{"id":"s14","name":"DADGAD Dsus4, all open","source":{"kind":"strings","instrument":"guitar-dadgad","fingering":[0,0,0,0,0,0]},"target":"mandolin","accept":[[7,5,0,-1],[7,5,5,-1],[7,5,0,10]],"note":"The G-against-A rub and the D on top pull against each other."},{"id":"s15","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"guitar","accept":[[-1,-1,12,12,12,15],[-1,-1,0,0,0,3],[3,2,0,0,0,3]],"note":"At pitch up the neck, or the same shape an octave down."},{"id":"s16","name":"A minor","source":{"kind":"strings","instrument":"mandolin","fingering":[2,2,3,0]},"target":"guitar","accept":[[-1,0,2,2,1,0],[-1,-1,2,2,1,0]],"note":"A guitarist would play open Am, an octave down."},{"id":"s17","name":"Close G triad","source":{"kind":"piano","notes":"G3 B3 D4"},"target":"banjo-g","accept":[[-1,-1,0,0,0],[-1,0,0,0,0],[0,0,0,0,0]],"note":"Open strings. The 5th-string drone sits above the source top."},{"id":"s18","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"banjo-g","accept":[[-1,-1,5,5,5],[0,-1,5,5,5],[0,2,0,1,2]],"note":"The barre at 5, or the open C shape with the drone on top."},{"id":"s19","name":"A, capo at 2","source":{"kind":"piano","notes":"A3 C#4 E4 A4"},"target":"guitar","capoFret":2,"accept":[[5,4,0,0,0,5],[-1,-1,7,6,5,5],[-1,-1,0,0,0,5]],"note":"G shape over the capo, or the barre at 5."},{"id":"s20","name":"Open C","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,1,0]},"target":"piano","acceptNotes":["C3 E3 G3 C4 E4"],"note":"The piano can play the exact pitches. This case only proves the path works."},{"id":"s21","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"piano","acceptNotes":["D4 G4 B4 G5"],"note":"Exact pitches again. This case only proves the path works."}];</script>
 <script>
+/* js/engine.js */
 /* ENGINE — Notations chord-voicing translator.
    Pure functions only: no DOM, no storage, no clock, no randomness.
    Same input always gives the same output. Written to be ported to Swift;
    the TESTS block is the parity suite for that port. */
 const Engine = (function () {
   'use strict';
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
 
   /* ───────────── 1. Notes ───────────── */
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -637,7 +647,7 @@ const Engine = (function () {
 
   /* ───────────── 4. Scoring ───────────── */
   const DEFAULT_WEIGHTS = {
-    topOctave: 8, topDifferent: 25, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
+    topOctave: 8, topDifferent: 40, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
     registerPerSemitone: 1, registerCap: 30, lowMud: 6, doubledThird: 6, doubledColour: 8,
     rootMissing: 4, fifthMissing: 1, highPosition: 2, definingLost: 60, tieWindow: 3, easeWeight: 2,
   };
@@ -648,7 +658,7 @@ const Engine = (function () {
     colourMissing: ['Colour tone missing', 'each'],
     rubLost: ['Rub lost', 'each'],
     bassMissing: ['Bass missing', ''],
-    registerPerSemitone: ['Register shift', 'per semitone, averaged over the notes'],
+    registerPerSemitone: ['Register shift', 'per semitone'],
     registerCap: ['Register shift, most it can cost', ''],
     lowMud: ['Low mud', 'each'],
     doubledThird: ['Doubled 3rd', ''],
@@ -665,13 +675,9 @@ const Engine = (function () {
 
   // Source and result pitches paired in sorted order: lowest with lowest,
   // highest with highest, the rest spread evenly across the longer list.
-  // The result is the average movement per paired note, so a fuller voicing is not charged for having more notes.
   function registerShift(src, res) {
     const m = src.length, n = res.length;
     if (!m || !n) return 0;
-    return registerSum(src, res, m, n) / Math.min(m, n);
-  }
-  function registerSum(src, res, m, n) {
     let sum = 0;
     if (m <= n) for (let i = 0; i < m; i++) { const j = m === 1 ? n - 1 : Math.round((i * (n - 1)) / (m - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
     else for (let j = 0; j < n; j++) { const i = n === 1 ? m - 1 : Math.round((j * (m - 1)) / (n - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
@@ -729,7 +735,7 @@ const Engine = (function () {
     if (semis > 0) {
       const raw = semis * W.registerPerSemitone, capped = Math.min(raw, W.registerCap);
       s += capped;
-      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement per note${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
+      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
     }
     // low mud: mud the source already had is part of its sound, so only new mud is charged
     for (let i = 0; i + 1 < all.length && all[i] < 55; i++) {
@@ -1242,39 +1248,12 @@ const Engine = (function () {
 })();
 </script>
 <script>
-/* TESTS — starter set. Every case is provisional: the expected answers were
-   written from common practice before the engine was run, and Bill has not
-   confirmed them. Fingerings read low course to high; -1 is muted, 0 is open.
-   A result passes when it sounds the same pitches as an accepted answer. */
-const STARTER_TESTS = [
-  { id: 's01', name: 'Close C triad', source: { kind: 'piano', notes: 'C4 E4 G4' }, target: 'mandolin', accept: [[5, 2, 3, 3], [0, 2, 3, 3], [-1, 2, 3, 3]], note: 'G should stay on top. The usual shapes put it on the E course.' },
-  { id: 's02', name: 'Cmaj7, B on top', source: { kind: 'piano', notes: 'C4 E4 G4 B4' }, target: 'mandolin', accept: [[5, 2, 2, -1], [5, 5, 7, 7], [0, 2, 2, -1]], note: 'Root, 3rd and 7th with B on top, or the four-course shape an octave up.' },
-  { id: 's03', name: 'G7', source: { kind: 'piano', notes: 'G3 B3 D4 F4' }, target: 'mandolin', accept: [[0, 0, 2, 1], [0, 3, 2, 1]], note: 'The open G7. F has to move up an octave.' },
-  { id: 's04', name: 'D7♯9', source: { kind: 'piano', notes: 'D3 F#3 C4 F4' }, target: 'mandolin', accept: [[7, 4, 3, 1], [-1, 4, 3, 1]], note: 'The whole voicing an octave up, or 3, ♭7, ♯9 without the root.' },
-  { id: 's05', name: 'Am7, 9th on top', source: { kind: 'piano', notes: 'A3 C4 E4 G4 B4' }, target: 'mandolin', accept: [[5, 5, 2, -1], [2, 5, 3, 7], [5, 5, 7, 7]], note: 'Five notes on four courses: the root or the 5th has to go, the 9th stays.' },
-  { id: 's06', name: 'F/A', source: { kind: 'piano', notes: 'A3 C4 F4' }, target: 'mandolin', accept: [[2, 3, 3, 1], [2, 3, 3, -1], [2, 3, 0, 1]], note: 'A on the bottom comes first.' },
-  { id: 's07', name: 'C/E', source: { kind: 'piano', notes: 'E4 G4 C5' }, target: 'mandolin', accept: [[9, 5, 3, -1]], note: 'Playable at pitch.' },
-  { id: 's08', name: 'F triad, C on top', source: { kind: 'piano', notes: 'F4 A4 C5' }, target: 'uke', accept: [[2, 0, 1, 3], [2, -1, 1, 3], [5, 5, 5, 3]], note: 'The everyday F with a high C. The open C string sits below the source.' },
-  { id: 's09', name: 'Close C triad', source: { kind: 'piano', notes: 'C4 E4 G4' }, target: 'uke', accept: [[0, 0, 0, -1], [0, 0, 0, 3]], note: 'Three open strings give the exact pitches.' },
-  { id: 's10', name: 'G7', source: { kind: 'piano', notes: 'G3 B3 D4 F4' }, target: 'uke-lowg', accept: [[0, 2, 1, 2]], note: 'The standard G7 shape, low G on the bottom. It puts B on top, not F.' },
-  { id: 's11', name: 'Open G', source: { kind: 'strings', instrument: 'guitar', fingering: [3, 2, 0, 0, 0, 3] }, target: 'mandolin', accept: [[0, 0, 2, 3], [7, 5, 2, 3]], note: 'Open G, or the chop shape.' },
-  { id: 's12', name: 'E7 shape', source: { kind: 'strings', instrument: 'guitar', fingering: [0, 2, 0, 1, 0, 0] }, target: 'mandolin', accept: [[1, 0, 2, 0]], note: 'The standard mandolin E7. G♯ ends up on the bottom.' },
-  { id: 's13', name: 'Open Cadd9', source: { kind: 'strings', instrument: 'guitar', fingering: [-1, 3, 2, 0, 3, 3] }, target: 'mandolin', accept: [[5, 2, 5, 3], [0, 2, 5, 3]], note: 'Root, 3rd, 9th, 5th with G on top.' },
-  { id: 's14', name: 'DADGAD Dsus4, all open', source: { kind: 'strings', instrument: 'guitar-dadgad', fingering: [0, 0, 0, 0, 0, 0] }, target: 'mandolin', accept: [[7, 5, 0, -1], [7, 5, 5, -1], [7, 5, 0, 10]], note: 'The G-against-A rub and the D on top pull against each other.' },
-  { id: 's15', name: 'G chop chord', source: { kind: 'strings', instrument: 'mandolin', fingering: [7, 5, 2, 3] }, target: 'guitar', accept: [[-1, -1, 12, 12, 12, 15], [-1, -1, 0, 0, 0, 3], [3, 2, 0, 0, 0, 3]], note: 'At pitch up the neck, or the same shape an octave down.' },
-  { id: 's16', name: 'A minor', source: { kind: 'strings', instrument: 'mandolin', fingering: [2, 2, 3, 0] }, target: 'guitar', accept: [[-1, 0, 2, 2, 1, 0], [-1, -1, 2, 2, 1, 0]], note: 'A guitarist would play open Am, an octave down.' },
-  { id: 's17', name: 'Close G triad', source: { kind: 'piano', notes: 'G3 B3 D4' }, target: 'banjo-g', accept: [[-1, -1, 0, 0, 0], [-1, 0, 0, 0, 0], [0, 0, 0, 0, 0]], note: 'Open strings. The 5th-string drone sits above the source top.' },
-  { id: 's18', name: 'Close C triad', source: { kind: 'piano', notes: 'C4 E4 G4' }, target: 'banjo-g', accept: [[-1, -1, 5, 5, 5], [0, -1, 5, 5, 5], [0, 2, 0, 1, 2]], note: 'The barre at 5, or the open C shape with the drone on top.' },
-  { id: 's19', name: 'A, capo at 2', source: { kind: 'piano', notes: 'A3 C#4 E4 A4' }, target: 'guitar', capoFret: 2, accept: [[5, 4, 0, 0, 0, 5], [-1, -1, 7, 6, 5, 5], [-1, -1, 0, 0, 0, 5]], note: 'G shape over the capo, or the barre at 5.' },
-  { id: 's20', name: 'Open C', source: { kind: 'strings', instrument: 'guitar', fingering: [-1, 3, 2, 0, 1, 0] }, target: 'piano', acceptNotes: ['C3 E3 G3 C4 E4'], note: 'The piano can play the exact pitches. This case only proves the path works.' },
-  { id: 's21', name: 'G chop chord', source: { kind: 'strings', instrument: 'mandolin', fingering: [7, 5, 2, 3] }, target: 'piano', acceptNotes: ['D4 G4 B4 G5'], note: 'Exact pitches again. This case only proves the path works.' },
-].map((t) => Object.assign({ status: 'provisional', capos: [] }, t));
-</script>
-<script>
-(function () {
+/* js/util.js */
+/* UTIL — helpers shared by every page script. Loaded right after the engine. */
 'use strict';
-/* APP — the page. Everything musical is decided by Engine; this file only draws, plays, stores and records picks. */
 const E = Engine;
+// 'web' on GitHub Pages and the Home Screen; the artifact build sets NOTATIONS_BUILD to 'artifact'.
+const BUILD = window.NOTATIONS_BUILD || 'web';
 const $ = (s, r) => (r || document).querySelector(s);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -1287,14 +1266,20 @@ const ICON = {
   right: '<svg class="ico" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg>',
 };
 
-/* ───────── state and storage ───────── */
+</script>
+<script>
+/* js/storage.js */
+/* STORAGE — Bill's data: learned weights, picks, favourites, translations, tests, instruments and capo setups.
+   Kept in IndexedDB, with persistent storage requested so iOS is less likely to clear it. Data saved by the
+   first build in localStorage is carried over on first load. Backup and restore stay the safety net. */
 const LS_KEY = 'notations.state.v1';
 const preset = (id) => E.PRESETS.find((p) => p.id === id);
+let LAB_CASES = [];
 function starterTests() {
-  return STARTER_TESTS.map((t) => {
+  return LAB_CASES.map((t) => {
     const c = clone(t);
     if (c.capoFret) { c.capos = [E.fullCapo(preset(c.target), c.capoFret)]; delete c.capoFret; }
-    return c;
+    return Object.assign({ status: 'provisional', capos: [] }, c);
   });
 }
 function defaultState() {
@@ -1303,6 +1288,7 @@ function defaultState() {
     settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord' },
     weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [],
     work: { piano: [60, 64, 67, 71], fing: {}, srcCapos: [], tgtCapos: [] },
+    meta: { lastBackupAt: 0, picksAtBackup: 0 },
   };
 }
 function migrate(o) {
@@ -1310,15 +1296,70 @@ function migrate(o) {
   for (const k of Object.keys(d)) if (o[k] == null) o[k] = d[k];
   o.settings = Object.assign(d.settings, o.settings);
   o.work = Object.assign(d.work, o.work);
+  o.meta = Object.assign(d.meta, o.meta);
   if (!o.taste.global) o.taste = E.newTaste();
   return o;
 }
-let S = defaultState();
-const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups'], library: ['favourites', 'translations', 'tests'], picks: ['picks'] };
+let S = null;
+
+/* IndexedDB, one record holding the whole state. Writes are coalesced and flushed when the app is hidden. */
+const Store = {
+  db: null, where: 'memory', persisted: null, timer: 0,
+  open() {
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open('notations', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('kv');
+        req.onsuccess = () => { this.db = req.result; resolve(true); };
+        req.onerror = req.onblocked = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  },
+  get(key) {
+    return new Promise((resolve) => {
+      try { const r = this.db.transaction('kv').objectStore('kv').get(key); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(undefined); } catch (e) { resolve(undefined); }
+    });
+  },
+  put(key, value) {
+    return new Promise((resolve) => {
+      try { const tx = this.db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(value, key); tx.oncomplete = () => resolve(true); tx.onerror = tx.onabort = () => resolve(false); } catch (e) { resolve(false); }
+    });
+  },
+  async load() {
+    let raw = null;
+    if (await this.open()) { raw = await this.get('state'); this.where = 'indexeddb'; }
+    if (!raw) { try { const t = localStorage.getItem(LS_KEY); if (t) raw = JSON.parse(t); if (!this.db) this.where = 'localstorage'; } catch (e) { /* no storage: run from defaults */ } }
+    if (navigator.storage && navigator.storage.persist) {
+      try { this.persisted = (await navigator.storage.persisted()) || (await navigator.storage.persist()); } catch (e) { this.persisted = null; }
+    }
+    return raw ? migrate(raw) : defaultState();
+  },
+  write() {
+    clearTimeout(this.timer); this.timer = 0;
+    if (this.db) this.put('state', JSON.parse(JSON.stringify(S)));
+    else { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* keep working without it */ } }
+  },
+  schedule() { if (!this.timer) this.timer = setTimeout(() => this.write(), 400); },
+  flush() { if (this.timer) this.write(); },
+};
+function saveLocal() { Store.write(); }
+function save(workOnly) { if (!workOnly) S.updatedAt = Date.now(); Store.schedule(); if (!workOnly) schedulePush(); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Store.flush(); });
+window.addEventListener('pagehide', () => Store.flush());
+
+// One gentle line when there is learning newer than the last backup and that backup is 30 days old or more.
+function backupReminder() {
+  const m = S.meta, picks = S.picks.length;
+  if (picks <= (m.picksAtBackup || 0)) return null;
+  const since = m.lastBackupAt || (S.picks[0] && S.picks[0].t) || Date.now();
+  const days = Math.floor((Date.now() - since) / 86400000);
+  return days >= 30 ? (m.lastBackupAt ? `No backup for ${days} days.` : 'Your picks have never been backed up.') : null;
+}
+function markBackedUp() { S.meta.lastBackupAt = Date.now(); S.meta.picksAtBackup = S.picks.length; save(); }
+
+/* The artifact build also keeps a copy in the signed-in viewer's Claude account store. */
+const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups', 'meta'], library: ['favourites', 'translations', 'tests'], picks: ['picks'] };
 const remote = { col: null, status: 'device', pushed: {}, busy: false, dirty: false, t: 0 };
-function loadLocal() { try { const raw = localStorage.getItem(LS_KEY); if (raw) S = migrate(JSON.parse(raw)); } catch (e) { /* storage unavailable: run from defaults */ } }
-function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* keep working without it */ } }
-function save(workOnly) { if (!workOnly) S.updatedAt = Date.now(); saveLocal(); if (!workOnly) schedulePush(); }
 const partJson = (name) => { const o = {}; for (const k of PARTS[name]) o[k] = S[k]; return JSON.stringify(o); };
 function schedulePush() { if (!remote.col) return; clearTimeout(remote.t); remote.t = setTimeout(push, 2000); }
 async function push() {
@@ -1336,10 +1377,9 @@ async function push() {
   remote.busy = false;
   if (remote.dirty) { remote.dirty = false; schedulePush(); }
 }
-// The artifact's own store, private to the signed-in viewer. localStorage stays as the offline copy.
 async function initRemote() {
   try {
-    if (!window.claude || !window.claude.use) return;
+    if (BUILD !== 'artifact' || !window.claude || !window.claude.use) return;
     const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
     if (!db || !user) return;
     const uid = await user.id();
@@ -1357,52 +1397,15 @@ async function initRemote() {
   } catch (e) { remote.status = 'device'; }
 }
 
-/* ───────── session ───────── */
-const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false };
-const GEO = {};
-const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
-const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
-const isPiano = (i) => i.kind === 'piano';
-const detailed = () => S.settings.mode === 'detailed';
-const opts = () => ({ comfortMm: S.settings.comfortMm, impossibleMm: S.settings.impossibleMm, preferEasier: S.settings.preferEasier });
-function srcFing() {
-  const i = side('src');
-  let f = S.work.fing[i.id];
-  if (!f || f.length !== i.courses.length) f = S.work.fing[i.id] = i.courses.map(() => null);
-  return f;
+/* Lab cases: inlined in the artifact build, fetched from tests/ on the web build. */
+async function loadLabCases() {
+  if (window.NOTATIONS_LAB_CASES) { LAB_CASES = window.NOTATIONS_LAB_CASES; return; }
+  try { const r = await fetch('tests/lab-cases.json'); LAB_CASES = (await r.json()).cases; } catch (e) { LAB_CASES = []; }
 }
-function currentSource() {
-  const i = side('src');
-  if (isPiano(i)) return { kind: 'piano', pitches: S.work.piano.slice().sort((a, b) => a - b) };
-  return { kind: 'strings', instrument: i, capos: S.work.srcCapos, fingering: srcFing().map((f) => (f == null ? -1 : f)) };
-}
-function packSource() {
-  const s = currentSource();
-  return s.kind === 'piano' ? { kind: 'piano', pitches: s.pitches } : { kind: 'strings', instrument: s.instrument.id, fingering: s.fingering.slice(), capos: clone(s.capos) };
-}
-const packVoicing = (r) => (r.kind === 'piano' ? { pitches: r.pitches.slice() } : { fingering: r.fingering.slice() });
-const allCards = () => (ses.out ? [...(ses.custom ? [ses.custom] : []), ...ses.out.results] : []);
-const currentCard = () => allCards()[ses.card] || null;
-
-function recompute() {
-  const src = currentSource(), tgt = side('tgt');
-  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, card: 0, editing: null, out: null });
-  clearTimeout(ses.hintT);
-  if (ses.A.empty) return;
-  ses.ctx = E.contextKey(ses.A, tgt);
-  ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
-  ses.req = { source: src, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
-  ses.out = E.translate(ses.req);
-  if (!isPiano(tgt)) {
-    const req = ses.req;
-    ses.hintT = setTimeout(() => {
-      const h = E.suggestCapo(req, S.capoSetups.filter((c) => c.courses === tgt.courses.length));
-      if (h && ses.req === req) { ses.capoHint = h; renderBridge(); }
-    }, 350);
-  }
-}
-
-/* ───────── sound: press to hear, once ───────── */
+</script>
+<script>
+/* js/sound.js */
+/* SOUND — press to hear, once. Plucked strings (Karplus-Strong) and a simple piano. */
 const Snd = {
   ctx: null, cache: new Map(), cur: null, primed: false,
   unlock() {
@@ -1470,6 +1473,55 @@ function eventsOf(inst, capos, voicing) {
     if (o) ev.push({ main: o.main, pitches: o.pitches.map((p, s) => ({ p, g: inst.courses[c].strings[s].role === 'octave' ? 0.63 : 1 })) });
   });
   return ev;
+}
+
+</script>
+<script>
+/* js/app.js */
+/* APP — the main screen: what is entered, what the engine returns, and drawing it. Everything musical is decided by Engine. */
+/* ───────── session ───────── */
+const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false };
+const GEO = {};
+const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
+const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
+const isPiano = (i) => i.kind === 'piano';
+const detailed = () => S.settings.mode === 'detailed';
+const opts = () => ({ comfortMm: S.settings.comfortMm, impossibleMm: S.settings.impossibleMm, preferEasier: S.settings.preferEasier });
+function srcFing() {
+  const i = side('src');
+  let f = S.work.fing[i.id];
+  if (!f || f.length !== i.courses.length) f = S.work.fing[i.id] = i.courses.map(() => null);
+  return f;
+}
+function currentSource() {
+  const i = side('src');
+  if (isPiano(i)) return { kind: 'piano', pitches: S.work.piano.slice().sort((a, b) => a - b) };
+  return { kind: 'strings', instrument: i, capos: S.work.srcCapos, fingering: srcFing().map((f) => (f == null ? -1 : f)) };
+}
+function packSource() {
+  const s = currentSource();
+  return s.kind === 'piano' ? { kind: 'piano', pitches: s.pitches } : { kind: 'strings', instrument: s.instrument.id, fingering: s.fingering.slice(), capos: clone(s.capos) };
+}
+const packVoicing = (r) => (r.kind === 'piano' ? { pitches: r.pitches.slice() } : { fingering: r.fingering.slice() });
+const allCards = () => (ses.out ? [...(ses.custom ? [ses.custom] : []), ...ses.out.results] : []);
+const currentCard = () => allCards()[ses.card] || null;
+
+function recompute() {
+  const src = currentSource(), tgt = side('tgt');
+  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, card: 0, editing: null, out: null });
+  clearTimeout(ses.hintT);
+  if (ses.A.empty) return;
+  ses.ctx = E.contextKey(ses.A, tgt);
+  ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
+  ses.req = { source: src, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  ses.out = E.translate(ses.req);
+  if (!isPiano(tgt)) {
+    const req = ses.req;
+    ses.hintT = setTimeout(() => {
+      const h = E.suggestCapo(req, S.capoSetups.filter((c) => c.courses === tgt.courses.length));
+      if (h && ses.req === req) { ses.capoHint = h; renderBridge(); }
+    }, 350);
+  }
 }
 
 /* ───────── drawing ───────── */
@@ -1862,6 +1914,10 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet
 let rsT = 0;
 window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { ses.kbInit = false; render(); }, 120); });
 
+</script>
+<script>
+/* js/sheets.js */
+/* SHEETS — instruments and capos, the instrument editor, Library, Settings, the Lab, backup. */
 /* ───────── sheets ───────── */
 const stack = [];
 function openSheet(title, fn, fresh) {
@@ -1972,9 +2028,11 @@ function librarySheet() {
 
 /* settings */
 function storageNote() {
-  if (remote.status === 'account') return 'Saved to your Claude account and on this device.';
-  if (remote.status === 'error') return 'Saved on this device. The last save to your account did not go through.';
-  return 'Saved on this device only. Make a backup now and then.';
+  const last = S.meta.lastBackupAt ? `Last backup ${new Date(S.meta.lastBackupAt).toLocaleDateString()}.` : 'No backup yet.';
+  if (remote.status === 'account') return `Saved to your Claude account and on this device. ${last}`;
+  if (remote.status === 'error') return `Saved on this device. The last save to your account did not go through. ${last}`;
+  const keep = Store.persisted ? 'The browser has agreed to keep it.' : 'The browser may clear it if space runs low.';
+  return `Saved on this device only. ${keep} ${last}`;
 }
 function settingsSheet() {
   const st = S.settings;
@@ -2193,26 +2251,27 @@ Object.assign(ACT, {
     const data = backupData(), name = `notations-backup-${new Date().toISOString().slice(0, 10)}.json`;
     try {
       const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-      if (dl) { await dl.save({ filename: name, data }); return toast('Backup saved.'); }
+      if (dl) { await dl.save({ filename: name, data }); markBackedUp(); return toast('Backup saved.'); }
     } catch (err) { if (err && err.code === 'declined') return; }
     // Outside Claude (the installed Home Screen app): hand the file to the share sheet, or download it.
-    if (!window.claude) {
+    if (BUILD !== 'artifact') {
       try {
         const file = new File([data], name, { type: 'application/json' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return toast('Backup handed over. Choose Save to Files to keep it.'); }
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); markBackedUp(); return toast('Backup handed over. Choose Save to Files to keep it.'); }
         const a = document.createElement('a');
         a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-        return toast('Backup downloaded.');
+        markBackedUp(); return toast('Backup downloaded.');
       } catch (err) { if (err && err.name === 'AbortError') return; }
     }
     $('#bkArea').innerHTML = `<p class="note">Saving a file is not available in this view. Copy the text below and keep it somewhere safe; paste it back here to restore.</p><textarea id="bkText" readonly aria-label="Backup text">${esc(data)}</textarea><div class="row">${pill('Copy', 'bkcopy', '', 'primary')}<span class="grow"></span></div>`;
   },
-  bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Backup copied.'), () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
+  bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => { markBackedUp(); toast('Backup copied.'); }, () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
   restoreok() {
     const o = ses.pendingRestore; if (!o) return;
     S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.kbInit = false;
     saveLocal(); schedulePush(); recompute(); closeSheet(); render(); toast('Backup restored.');
   },
+  backupnow() { ACT.settings(); ACT.backup(); },
   restorecancel() { ses.pendingRestore = null; $('#bkArea').innerHTML = ''; },
 });
 function settingChanged() { save(); recompute(); render(); drawSheet(true); }
@@ -2235,14 +2294,38 @@ document.addEventListener('paste', (e) => {
   if (t && t.includes('"Notations"')) restoreFrom(t);
 });
 
-/* ───────── boot ───────── */
-loadLocal();
-recompute();
-render();
-requestAnimationFrame(() => { render(); if (ses.out) flashComp(); });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderBridge());
-initRemote();
-window.Notations = { state: () => S, session: () => ses, Engine: E };
-
+</script>
+<script>
+/* js/boot.js */
+/* BOOT — load data, draw the first screen, and on the web build register the offline worker. */
+(async function boot() {
+  await loadLabCases();
+  S = await Store.load();
+  recompute();
+  render();
+  requestAnimationFrame(() => { render(); if (ses.out) flashComp(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderBridge());
+  if (BUILD === 'artifact') { const tag = $('#buildTag'); if (tag) tag.hidden = false; initRemote(); }
+  else registerWorker();
+  const nag = backupReminder();
+  if (nag) setTimeout(() => toast(nag, { label: 'Back up', act: 'backupnow' }), 1500);
+  window.Notations = { state: () => S, session: () => ses, Engine: E, store: Store };
 })();
+
+let pendingWorker = null;
+// Offline: cache the app with a versioned service worker. A new version waits until Bill chooses to reload.
+function registerWorker() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    const offer = (w) => { pendingWorker = w; toast('Updated. Reload to use it.', { label: 'Reload', act: 'applyupdate' }); };
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      if (w) w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
+    });
+  }).catch(() => { /* offline support is optional */ });
+  ACT.applyupdate = () => { if (pendingWorker) pendingWorker.postMessage({ type: 'skipWaiting' }); else location.reload(); };
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
+}
 </script>

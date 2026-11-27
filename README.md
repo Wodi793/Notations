@@ -1,9 +1,25 @@
 # Notations
 
-Translates chord voicings between piano and fretted stringed instruments.
+Translates chord voicings between piano and fretted stringed instruments, and learns Bill's taste from his picks.
 
-- `notations.html` — the built single-file app (published as a Claude artifact).
-- `src/engine.js` — the deterministic engine: pure functions, no page access. This is the part to port to Swift.
-- `src/tests.js` — the starter test set (all provisional). `node test/run.js -v` runs it with default weights.
-- `src/app-*.js`, `src/app.css`, `src/app.html` — the interface.
-- `node build.js` rebuilds `notations.html`.
+Live at https://wodi793.github.io/Notations/ (GitHub Pages, served from `main`). Add it to the Home Screen from Safari's Share menu; it then runs full screen and offline.
+
+## Layout
+
+- `index.html`, `css/`, `js/`: the app, served as they are. No build step is needed to run it.
+  - `js/engine.js`: the deterministic engine. Pure functions, no page access; the part to port to Swift.
+  - `js/util.js`, `js/storage.js` (IndexedDB), `js/sound.js`, `js/app.js` (main screen), `js/sheets.js` (Library, Settings, Lab), `js/boot.js`.
+- `sw.js`: offline support. Its version is stamped by the build tool.
+- `icons/`: `notations-icon.svg` is the master; the PNGs are exported from it by `node tools/icons.js`.
+- `tests/`: `lab-cases.json` (the Lab's starter cases), `lab.js` (hit rates), `parity.js` with `parity-golden.json` (exact engine output on 1,664 cases), `timing.js`.
+- `tools/build-artifact.js`: builds `dist/notations-artifact.html`, the single-file Claude artifact, and stamps `sw.js`.
+- `docs/baseline.md`: the Round Two baseline and the feature checklist.
+
+## Checks
+
+```
+node tests/lab.js        # Lab hit rates, default weights
+node tests/parity.js     # engine output unchanged (add --update only for an intended change)
+node tests/timing.js     # engine timings
+node tools/build-artifact.js
+```

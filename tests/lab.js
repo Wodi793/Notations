@@ -1,7 +1,7 @@
 // Runs the starter test set against the engine with default weights.
-// Usage: node test/run.js [-v]
-const Engine = require('../src/engine.js');
-const TESTS = require('../src/tests.js');
+// Usage: node tests/lab.js [-v]
+const Engine = require(process.env.ENGINE || '../js/engine.js');
+const TESTS = require('./lab-cases.json').cases.map((t) => Object.assign({ status: 'provisional', capos: [] }, t));
 const verbose = process.argv.includes('-v');
 const find = (id) => (id === 'piano' ? Engine.PIANO : Engine.PRESETS.find((p) => p.id === id));
 let top1 = 0, top3 = 0, worst = 0;

@@ -1,3 +1,4 @@
+/* SHEETS — instruments and capos, the instrument editor, Library, Settings, the Lab, backup. */
 /* ───────── sheets ───────── */
 const stack = [];
 function openSheet(title, fn, fresh) {
@@ -108,9 +109,11 @@ function librarySheet() {
 
 /* settings */
 function storageNote() {
-  if (remote.status === 'account') return 'Saved to your Claude account and on this device.';
-  if (remote.status === 'error') return 'Saved on this device. The last save to your account did not go through.';
-  return 'Saved on this device only. Make a backup now and then.';
+  const last = S.meta.lastBackupAt ? `Last backup ${new Date(S.meta.lastBackupAt).toLocaleDateString()}.` : 'No backup yet.';
+  if (remote.status === 'account') return `Saved to your Claude account and on this device. ${last}`;
+  if (remote.status === 'error') return `Saved on this device. The last save to your account did not go through. ${last}`;
+  const keep = Store.persisted ? 'The browser has agreed to keep it.' : 'The browser may clear it if space runs low.';
+  return `Saved on this device only. ${keep} ${last}`;
 }
 function settingsSheet() {
   const st = S.settings;
@@ -329,26 +332,27 @@ Object.assign(ACT, {
     const data = backupData(), name = `notations-backup-${new Date().toISOString().slice(0, 10)}.json`;
     try {
       const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-      if (dl) { await dl.save({ filename: name, data }); return toast('Backup saved.'); }
+      if (dl) { await dl.save({ filename: name, data }); markBackedUp(); return toast('Backup saved.'); }
     } catch (err) { if (err && err.code === 'declined') return; }
     // Outside Claude (the installed Home Screen app): hand the file to the share sheet, or download it.
-    if (!window.claude) {
+    if (BUILD !== 'artifact') {
       try {
         const file = new File([data], name, { type: 'application/json' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return toast('Backup handed over. Choose Save to Files to keep it.'); }
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); markBackedUp(); return toast('Backup handed over. Choose Save to Files to keep it.'); }
         const a = document.createElement('a');
         a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
-        return toast('Backup downloaded.');
+        markBackedUp(); return toast('Backup downloaded.');
       } catch (err) { if (err && err.name === 'AbortError') return; }
     }
     $('#bkArea').innerHTML = `<p class="note">Saving a file is not available in this view. Copy the text below and keep it somewhere safe; paste it back here to restore.</p><textarea id="bkText" readonly aria-label="Backup text">${esc(data)}</textarea><div class="row">${pill('Copy', 'bkcopy', '', 'primary')}<span class="grow"></span></div>`;
   },
-  bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => toast('Backup copied.'), () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
+  bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => { markBackedUp(); toast('Backup copied.'); }, () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
   restoreok() {
     const o = ses.pendingRestore; if (!o) return;
     S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.kbInit = false;
     saveLocal(); schedulePush(); recompute(); closeSheet(); render(); toast('Backup restored.');
   },
+  backupnow() { ACT.settings(); ACT.backup(); },
   restorecancel() { ses.pendingRestore = null; $('#bkArea').innerHTML = ''; },
 });
 function settingChanged() { save(); recompute(); render(); drawSheet(true); }
@@ -371,11 +375,3 @@ document.addEventListener('paste', (e) => {
   if (t && t.includes('"Notations"')) restoreFrom(t);
 });
 
-/* ───────── boot ───────── */
-loadLocal();
-recompute();
-render();
-requestAnimationFrame(() => { render(); if (ses.out) flashComp(); });
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderBridge());
-initRemote();
-window.Notations = { state: () => S, session: () => ses, Engine: E };

@@ -1,6 +1,6 @@
 // Times translate and the capo suggestion on the cases named in the Round Two brief.
 const path = require('path');
-const E = require(process.env.ENGINE || path.join(__dirname, '../src/engine.js'));
+const E = require(process.env.ENGINE || path.join(__dirname, '../js/engine.js'));
 const P = (s) => E.parseNotes(s), preset = (id) => E.PRESETS.find((p) => p.id === id);
 const CASES = [['Mandolin', 'mandolin', 'Cmaj9, close', 'C4 E4 G4 B4 D5'], ['Mandolin', 'mandolin', '7-note spread', 'C3 G3 E4 B4 D5 F#5 A5'],
   ['Guitar', 'guitar', 'Cmaj9, close', 'C4 E4 G4 B4 D5'], ['Guitar', 'guitar', '7-note spread', 'C3 G3 E4 B4 D5 F#5 A5']];

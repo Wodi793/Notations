@@ -1,3 +1,9 @@
+/* Base: true black page, safe areas padded top and bottom, no browser margins. */
+html { box-sizing: border-box; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); background: #000; }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
 /* Layout: two equal strips mirrored around a bridge band; black ground, one green ramp where brightness = importance. */
 :root {
   color-scheme: dark;
@@ -182,3 +188,4 @@ table.bd tr.hit td:first-child { color: var(--accent); }
 .short { display: none; }
 @media (max-width: 599px) { .short { display: inline; } }
 label.pill { display: inline-flex; align-items: center; cursor: pointer; }
+.buildtag { font-family: var(--sans); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; vertical-align: 3px; margin-left: 6px; }
