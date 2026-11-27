@@ -8,6 +8,7 @@ const OPS = {
   // Only what the capo verdict needs, so little has to be copied back.
   translateTop: (req) => { const r = Engine.translate(req).results[0]; return r ? { score: r.score, bassTier: r.bassTier } : null; },
   sameNotes: (req) => Engine.sameNotes(req),
+  alternatives: (req) => Engine.alternatives(req),
   // The Lab: every case, plus timings measured on this device.
   lab: ({ tests, instruments, weights, timing }) => {
     const byId = new Map(instruments.map((i) => [i.id, i]));

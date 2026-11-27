@@ -232,3 +232,12 @@ select.mini { min-height: 32px; height: 32px; padding: 0 6px; font-size: 13px; b
 .accbtn { font-size: 18px; min-width: 36px; padding: 0 6px; }
 .staffhost svg, #srcScroll > div > svg { display: block; }
 .staffnote { padding: 0 16px; }
+/* Chord-name entry in the bridge band. */
+button.chord { cursor: text; }
+.naming { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.chordinput { font-family: var(--serif); font-size: 28px; height: 48px; width: min(260px, 50vw); text-align: center; background: var(--surface); border-radius: 10px; }
+.namekeys { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding-top: 6px; }
+.namekey { min-width: 40px; height: 36px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 15px; color: var(--text); background: var(--surface); }
+.namekey:active { background: var(--raised); }
+.nameerr { color: var(--warn); padding-top: 4px; }
+@media (max-width: 599px) { #srcRow [data-act="view"] { display: none; } }

@@ -39,6 +39,8 @@ function recompute(delay, flash) {
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) || isStaff(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  // Same instrument, same capos: show other ways to play this sound rather than the chord Bill already has.
+  if (src.kind === 'strings' && S.settings.src === S.settings.tgt && JSON.stringify(S.work.srcCapos) === JSON.stringify(S.work.tgtCapos)) ses.req.alternatives = true;
   // Notation can show any pitches exactly, so a staff target is not translated: it notates the source.
   if (isStaff(tgt)) { ses.out = { analysis: ses.A, results: [staffResult(src)], flags: [] }; ses.pending = false; ses.card = 0; return; }
   ses.pending = true;
@@ -48,7 +50,8 @@ function recompute(delay, flash) {
 }
 async function translateNow(gen, req) {
   let out;
-  try { out = await Eng.call('translate', req); } catch (e) { out = E.translate(req); }
+  const op = req.alternatives ? 'alternatives' : 'translate';
+  try { out = await Eng.call(op, req); } catch (e) { out = E[op](req); }
   if (gen !== ses.gen) return;
   ses.out = out; ses.pending = false; ses.card = 0;
   renderSource(); renderBridge(); renderTarget();
@@ -263,7 +266,7 @@ function renderSource() {
   $('#srcRow').innerHTML = `<span class="rubric srcname">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
     `<button class="iconbtn" data-act="view" data-d="-1" aria-label="${piano ? 'Show lower keys' : 'Show lower frets'}">${ICON.left}</button><button class="iconbtn" data-act="view" data-d="1" aria-label="${piano ? 'Show higher keys' : 'Show higher frets'}">${ICON.right}</button>` +
     `<button class="txtbtn" data-act="octchord" data-d="-1" id="octDown" aria-label="Move the chord down an octave">Oct ↓</button><button class="txtbtn" data-act="octchord" data-d="1" id="octUp" aria-label="Move the chord up an octave">Oct ↑</button>` +
-    (piano ? '' : `<button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
+    (piano ? '' : `<button class="txtbtn ${S.settings.tgt === S.settings.src ? 'on' : ''}" data-act="alternatives" aria-pressed="${S.settings.tgt === S.settings.src}"><span class="long">Alternatives</span><span class="short">Alts</span></button><button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
     `<button class="txtbtn" data-act="clear">Clear</button>`;
   const W = box.clientWidth, H = box.clientHeight;
   if (W < 20 || H < 20) return;
@@ -312,11 +315,16 @@ function compText() {
 function renderBridge() {
   const A = ses.A, mid = $('#bridgeMid');
   $('#saveTest').disabled = !ses.picked;
+  if (ses.naming) return renderNaming(mid);
   if (!A || A.empty) {
-    mid.innerHTML = `<div class="chord empty">Enter a voicing</div><div class="lines"><div class="line colour">Tap the ${isPiano(side('src')) ? 'keys' : 'frets'} on the source strip to begin.</div></div>`;
+    mid.innerHTML = `<button class="chord empty" data-act="namechord" aria-label="Type a chord name">Enter a voicing</button><div class="lines"><div class="line colour">Tap the ${isPiano(side('src')) ? 'keys' : isStaff(side('src')) ? 'staff' : 'frets'} on the source strip, or tap here to type a chord name.</div></div>`;
     return;
   }
-  let h = `<button class="chord" data-act="showcomp" aria-label="Chord ${esc(A.name)}. Show what the translation gave up.">${esc(A.name)}</button>`;
+  // A typed name stays on show while the notes still belong to it; the engine's own reading is noted in Detailed.
+  const typed = ses.typed && A.pcs.every((pc) => ses.typed.pcs.includes(pc)) ? ses.typed.name : null;
+  const label = typed || A.name;
+  let h = `<button class="chord" data-act="namechord" aria-label="Chord ${esc(label)}. Tap to type a chord name; press and hold to show what the translation gave up.">${esc(label)}</button>`;
+  if (typed && typed !== A.name && detailed()) h += `<div class="line">The engine reads these notes as ${esc(A.name)}.</div>`;
   if (ses.reasons) h += `<div class="reasons" id="reasons">${Object.keys(E.CHIP_KEYS).map((k) => `<button data-act="reason" data-k="${k}" class="${ses.reasons[k] ? 'on' : ''}"><span>${k}</span></button>`).join('')}</div>`;
   else {
     h += `<div class="lines ${ses.showComp ? 'showcomp' : ''}" id="lines"><div class="line colour">${esc(A.colourLine)}</div><div class="line comp">${compText()}</div></div>`;
@@ -324,6 +332,48 @@ function renderBridge() {
   }
   mid.innerHTML = h;
 }
+/* Typing a chord name: the bridge becomes a text field with handy keys. A name becomes a piano voicing, which is
+   placed on the source surface (translated onto it first when the source is a stringed instrument). */
+const NAME_KEYS = ['♯', '♭', 'maj', 'm', '7', '9', '11', '13', 'sus', 'ø', '°', 'add', '/'];
+function renderNaming(mid) {
+  const n = ses.naming;
+  mid.innerHTML = `<form class="naming" id="nameForm" autocomplete="off"><input id="chordInput" class="chordinput" value="${esc(n.text)}" placeholder="D7♯9" aria-label="Chord name" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+    <button type="submit" class="pill primary"><span>Show</span></button><button type="button" class="txtbtn" data-act="namecancel">Cancel</button></form>
+    <div class="namekeys">${NAME_KEYS.map((k) => `<button type="button" class="namekey" data-act="namekey" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div>
+    ${n.error ? `<div class="line nameerr">${esc(n.error)}</div>` : ''}`;
+  const inp = $('#chordInput');
+  inp.addEventListener('input', () => { n.text = inp.value; });
+  $('#nameForm').addEventListener('submit', (e) => { e.preventDefault(); submitName(); });
+  if (n.focus !== false) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+async function submitName() {
+  const n = ses.naming, parsed = ChordName.parse(n.text);
+  if (!parsed.ok) {
+    n.error = `Didn't recognise that. Try Cmaj7 or D7♯9.${parsed.understood ? ` Understood so far: ${parsed.understood}.` : ''}`;
+    return renderBridge();
+  }
+  const pitches = ChordName.voicing(parsed), inst = side('src');
+  ses.typed = { name: ChordName.normalise(n.text).replace(/^([a-g])/, (m) => m.toUpperCase()), pcs: parsed.pcs };
+  if (isStaff(inst)) { S.work.staff = pitches; S.work.staffSpell = {}; S.work.staffLast = null; }
+  else if (isPiano(inst)) S.work.piano = pitches;
+  else {
+    const r = await Eng.call('translate', { source: { kind: 'piano', pitches }, target: inst, capos: S.work.srcCapos, options: opts() });
+    if (!r.results.length) { n.error = `No playable ${parsed.understood} on the ${inst.name.toLowerCase()} here.`; return renderBridge(); }
+    S.work.fing[inst.id] = r.results[0].fingering.map((f) => (f < 0 ? null : f));
+  }
+  ses.naming = null; ses.fit.src = true; save(true); recompute(0, true); render();
+}
+// Keep the text field focused while the handy keys are pressed, so the iPhone keyboard stays up.
+document.addEventListener('pointerdown', (e) => { if (e.target.closest('.namekey')) e.preventDefault(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ses.naming) { ses.naming = null; renderBridge(); } });
+// Press and hold the chord name to bring back the compromise line (a tap now opens the name field).
+let holdT = 0;
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.chord:not(.empty)')) return;
+  ses.longPressed = false;
+  holdT = setTimeout(() => { ses.longPressed = true; if (ses.out) flashComp(); }, 500);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) document.addEventListener(ev, () => clearTimeout(holdT));
 function flashComp() {
   ses.showComp = true; clearTimeout(ses.compT);
   const l = $('#lines'); if (l) { l.classList.add('showcomp'); $('.line.comp', l).innerHTML = compText(); }
@@ -371,7 +421,7 @@ function renderTarget() {
       <span class="pos">${pos}</span>
       <button class="fig" data-act="why" data-i="${i}" aria-label="Sound score ${fmt(res.score)}. Show why."><span>Score</span> <b>${fmt(res.score)}</b></button>
       <span class="fig"><span class="long">Difficulty</span><span class="short">Diff</span> <b>${fmt(res.difficulty)}</b></span>
-      <span class="tab grow">${detailed() ? esc(res.kind === 'piano' ? res.label : res.text) : ''}</span>
+      <span class="tab grow">${ses.out.alternatives ? esc(res.label || '') : detailed() ? esc(res.kind === 'piano' ? res.label : res.text) : ''}</span>
       <button class="iconbtn star ${fav ? 'on' : ''}" data-act="star" data-i="${i}" aria-label="${fav ? 'Remove from' : 'Add to'} favourites" aria-pressed="${fav}">${ICON.star}</button>
       <button class="use ${picked ? 'done' : ''}" data-act="use" data-i="${i}"><span>${picked ? 'Chosen' : 'Use this'}</span></button></div></article>`;
   });
@@ -464,6 +514,12 @@ const ACT = {
     else { const c = currentCard(); if (!c) return; where = document.querySelectorAll('#cards .card')[ses.card]; sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt)); }
     if (sched) lightUp(where, sched);
   },
+  // One tap sets the target to the source instrument (same capos); a second tap restores the previous target.
+  alternatives() {
+    if (S.settings.tgt === S.settings.src && S.work.prevTgt) { S.settings.tgt = S.work.prevTgt; S.work.tgtCapos = S.work.prevTgtCapos || []; S.work.prevTgt = null; }
+    else { S.work.prevTgt = S.settings.tgt; S.work.prevTgtCapos = clone(S.work.tgtCapos); S.settings.tgt = S.settings.src; S.work.tgtCapos = clone(S.work.srcCapos); }
+    save(); recompute(0, true); render();
+  },
   swap() {
     const cur = currentCard(), a = S.settings.src, b = S.settings.tgt;
     S.settings.src = b; S.settings.tgt = a;
@@ -524,7 +580,7 @@ function usePick(i) {
   const losers = ses.out.results.filter((r) => r.multiKey !== res.multiKey), strength = res.custom ? 2 : 1, tgt = side('tgt');
   S.taste = E.learn(S.taste, { ctxKey: ses.ctx, winner: res, losers, strength });
   const capos = isPiano(tgt) ? [] : clone(S.work.tgtCapos);
-  S.picks.push({ t: Date.now(), ctx: ses.ctx, chord: ses.A.name, src: packSource(), tgt: tgt.id, capos, win: packVoicing(res), shown: ses.out.results.map((r) => r.text), custom: !!res.custom });
+  S.picks.push({ t: Date.now(), ctx: ses.ctx, chord: ses.A.name, src: packSource(), tgt: tgt.id, capos, win: packVoicing(res), shown: ses.out.results.map((r) => r.text), custom: !!res.custom, alternatives: !!ses.out.alternatives });
   if (S.picks.length > 1500) S.picks.splice(0, S.picks.length - 1500);
   S.translations.unshift({ id: 't' + Date.now(), t: Date.now(), chord: ses.A.name, src: packSource(), srcName: side('src').name, tgt: tgt.id, tgtName: tgt.name, capos, voicing: packVoicing(res), text: res.text });
   if (S.translations.length > 300) S.translations.length = 300;
@@ -559,3 +615,15 @@ function lightUp(where, sched) {
     }, Math.max(0, ev.at * 1000));
   }
 }
+
+Object.assign(ACT, {
+  namechord() {
+    if (ses.longPressed) { ses.longPressed = false; return; }
+    ses.naming = { text: '', error: '' }; renderBridge();
+  },
+  namecancel() { ses.naming = null; renderBridge(); },
+  namekey(el) {
+    const inp = $('#chordInput'), k = el.dataset.k, a = inp.selectionStart ?? inp.value.length, b = inp.selectionEnd ?? a;
+    inp.setRangeText(k, a, b, 'end'); ses.naming.text = inp.value; inp.focus();
+  },
+});

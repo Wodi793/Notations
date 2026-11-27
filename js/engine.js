@@ -4,7 +4,7 @@
    the TESTS block is the parity suite for that port. */
 const Engine = (function () {
   'use strict';
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
 
   /* ───────────── 1. Notes ───────────── */
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -101,7 +101,7 @@ const Engine = (function () {
     let core, family;
     if (sev === 'd7') { core = 'dim7'; drop('♭5'); family = 'diminished'; }
     else if (dimCtx && sev === 'b7') { core = 'm' + top + '♭5'; drop('♭5'); family = 'half-diminished'; }
-    else if (dimCtx && !sev) { core = 'dim'; drop('♭5'); family = 'diminished'; }
+    else if (dimCtx && !sev) { core = 'dim' + (n9 ? 'add9' : '') + (n11 ? 'add11' : ''); drop('♭5'); family = 'diminished'; }
     else if (third === 'maj' && lab(8) === '♯5' && !sev) { core = '+' + (n9 ? 'add9' : ''); drop('♯5'); family = 'other'; }
     else if (sev === 'b7' || sev === 'M7') {
       core = sev === 'M7' ? (m ? 'm(maj' + top + ')' : 'maj' + top) : m + top;
@@ -119,7 +119,9 @@ const Engine = (function () {
     }
     if (sus) core += 'sus' + sus;
     if (!third && !sus && S !== 1) core = power ? '5' : core + '(no3)';
-    return { R, cost, missing, third, sus, sev, dimCtx, quality: core + alts.join(''), family, power };
+    // An alteration straight after the root letter would read as the root's own accidental (C♭9), so it goes in brackets.
+    const altText = alts.join('');
+    return { R, cost, missing, third, sus, sev, dimCtx, quality: core ? core + altText : altText ? '(' + altText + ')' : '', family, power };
   }
 
   const INTERVAL_NAMES = ['unison', 'half step', 'whole step', 'minor 3rd', 'major 3rd', '4th', 'tritone', '5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th'];
@@ -991,6 +993,36 @@ const Engine = (function () {
     return best;
   }
 
+  /* ───────────── 10a. Other ways to play the same sound ───────────── */
+  // Source and target are the same instrument with the same capos. The fingering Bill entered is left out.
+  // Fingerings with exactly the same pitches come first, labelled "Same notes"; after them, the best-ranked
+  // voicings that keep the sound with small compromises, labelled with what changed. Up to four in all, with at
+  // least one compromise when there is one.
+  function alternatives(req) {
+    const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    const fing = req.source.fingering.map((f) => (f == null || f < 0 ? -1 : f));
+    const base = translate(Object.assign({}, req, { options: Object.assign({}, opt, { ranked: 40 }) }));
+    const A = base.analysis;
+    if (A.empty) return base;
+    const P = prepare(req.target, req.capos), enteredKey = voicingOf(P, fing).multi.join(',');
+    const same = sameNotes({ target: req.target, capos: req.capos, fingering: fing, options: opt });
+    const limit = opt.maxResults || 4;
+    const sameRes = same.slice(0, Math.max(1, limit - 1)).map((x) => {
+      const r = evaluate(Object.assign({}, req, { fingering: x.fingering, analysis: A }));
+      r.label = 'Same notes'; r.compromise = Object.assign({}, r.compromise, { text: 'Same notes, another position.' });
+      return r;
+    });
+    const seen = new Set([enteredKey, ...sameRes.map((r) => r.text)]);
+    const rest = [];
+    for (const r of base.ranked) {
+      if (sameRes.length + rest.length >= limit) break;
+      // Exact same pitches past the same-notes cards are left out, so the last card is a real compromise.
+      if (r.multiKey === enteredKey || seen.has(r.text) || r.compromise.exact) continue;
+      seen.add(r.text); r.label = r.compromise.text; rest.push(r);
+    }
+    return { analysis: A, results: [...sameRes, ...rest], flags: base.flags, ranked: [], considered: base.considered, alternatives: true };
+  }
+
   /* ───────────── 10b. Same notes, other fingerings ───────────── */
   // Every playable fingering on the same instrument and capos that sounds exactly the same pitches as the given
   // one, the given fingering left out. Ordered by hand position, then difficulty.
@@ -1148,7 +1180,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     spellChord, ENHARMONIC, predictKey, traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,

@@ -36,6 +36,7 @@ const Eng = {
         if (op === 'translate') resolve(E.translate(arg));
         else if (op === 'translateTop') { const r = E.translate(arg).results[0]; resolve(r ? { score: r.score, bassTier: r.bassTier } : null); }
         else if (op === 'sameNotes') resolve(E.sameNotes(arg));
+        else if (op === 'alternatives') resolve(E.alternatives(arg));
         else if (op === 'lab') {
           const byId = new Map(arg.instruments.map((i) => [i.id, i])), find = (id) => (id === 'piano' ? E.PIANO : byId.get(id));
           resolve({ rows: arg.tests.map((tc) => E.runTest(tc, find, arg.weights || {}, {})), times: null });

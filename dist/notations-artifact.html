@@ -236,6 +236,15 @@ select.mini { min-height: 32px; height: 32px; padding: 0 6px; font-size: 13px; b
 .accbtn { font-size: 18px; min-width: 36px; padding: 0 6px; }
 .staffhost svg, #srcScroll > div > svg { display: block; }
 .staffnote { padding: 0 16px; }
+/* Chord-name entry in the bridge band. */
+button.chord { cursor: text; }
+.naming { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.chordinput { font-family: var(--serif); font-size: 28px; height: 48px; width: min(260px, 50vw); text-align: center; background: var(--surface); border-radius: 10px; }
+.namekeys { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding-top: 6px; }
+.namekey { min-width: 40px; height: 36px; padding: 0 8px; border: 1px solid var(--hairline); border-radius: 8px; font-size: 15px; color: var(--text); background: var(--surface); }
+.namekey:active { background: var(--raised); }
+.nameerr { color: var(--warn); padding-top: 4px; }
+@media (max-width: 599px) { #srcRow [data-act="view"] { display: none; } }
 </style>
 
 <div id="app" class="roomy">
@@ -309,6 +318,7 @@ const OPS = {
   // Only what the capo verdict needs, so little has to be copied back.
   translateTop: (req) => { const r = Engine.translate(req).results[0]; return r ? { score: r.score, bassTier: r.bassTier } : null; },
   sameNotes: (req) => Engine.sameNotes(req),
+  alternatives: (req) => Engine.alternatives(req),
   // The Lab: every case, plus timings measured on this device.
   lab: ({ tests, instruments, weights, timing }) => {
     const byId = new Map(instruments.map((i) => [i.id, i]));
@@ -342,7 +352,7 @@ self.onmessage = (e) => {
    the TESTS block is the parity suite for that port. */
 const Engine = (function () {
   'use strict';
-  const VERSION = '1.2.0';
+  const VERSION = '1.3.0';
 
   /* ───────────── 1. Notes ───────────── */
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -439,7 +449,7 @@ const Engine = (function () {
     let core, family;
     if (sev === 'd7') { core = 'dim7'; drop('♭5'); family = 'diminished'; }
     else if (dimCtx && sev === 'b7') { core = 'm' + top + '♭5'; drop('♭5'); family = 'half-diminished'; }
-    else if (dimCtx && !sev) { core = 'dim'; drop('♭5'); family = 'diminished'; }
+    else if (dimCtx && !sev) { core = 'dim' + (n9 ? 'add9' : '') + (n11 ? 'add11' : ''); drop('♭5'); family = 'diminished'; }
     else if (third === 'maj' && lab(8) === '♯5' && !sev) { core = '+' + (n9 ? 'add9' : ''); drop('♯5'); family = 'other'; }
     else if (sev === 'b7' || sev === 'M7') {
       core = sev === 'M7' ? (m ? 'm(maj' + top + ')' : 'maj' + top) : m + top;
@@ -457,7 +467,9 @@ const Engine = (function () {
     }
     if (sus) core += 'sus' + sus;
     if (!third && !sus && S !== 1) core = power ? '5' : core + '(no3)';
-    return { R, cost, missing, third, sus, sev, dimCtx, quality: core + alts.join(''), family, power };
+    // An alteration straight after the root letter would read as the root's own accidental (C♭9), so it goes in brackets.
+    const altText = alts.join('');
+    return { R, cost, missing, third, sus, sev, dimCtx, quality: core ? core + altText : altText ? '(' + altText + ')' : '', family, power };
   }
 
   const INTERVAL_NAMES = ['unison', 'half step', 'whole step', 'minor 3rd', 'major 3rd', '4th', 'tritone', '5th', 'minor 6th', 'major 6th', 'minor 7th', 'major 7th'];
@@ -1329,6 +1341,36 @@ const Engine = (function () {
     return best;
   }
 
+  /* ───────────── 10a. Other ways to play the same sound ───────────── */
+  // Source and target are the same instrument with the same capos. The fingering Bill entered is left out.
+  // Fingerings with exactly the same pitches come first, labelled "Same notes"; after them, the best-ranked
+  // voicings that keep the sound with small compromises, labelled with what changed. Up to four in all, with at
+  // least one compromise when there is one.
+  function alternatives(req) {
+    const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    const fing = req.source.fingering.map((f) => (f == null || f < 0 ? -1 : f));
+    const base = translate(Object.assign({}, req, { options: Object.assign({}, opt, { ranked: 40 }) }));
+    const A = base.analysis;
+    if (A.empty) return base;
+    const P = prepare(req.target, req.capos), enteredKey = voicingOf(P, fing).multi.join(',');
+    const same = sameNotes({ target: req.target, capos: req.capos, fingering: fing, options: opt });
+    const limit = opt.maxResults || 4;
+    const sameRes = same.slice(0, Math.max(1, limit - 1)).map((x) => {
+      const r = evaluate(Object.assign({}, req, { fingering: x.fingering, analysis: A }));
+      r.label = 'Same notes'; r.compromise = Object.assign({}, r.compromise, { text: 'Same notes, another position.' });
+      return r;
+    });
+    const seen = new Set([enteredKey, ...sameRes.map((r) => r.text)]);
+    const rest = [];
+    for (const r of base.ranked) {
+      if (sameRes.length + rest.length >= limit) break;
+      // Exact same pitches past the same-notes cards are left out, so the last card is a real compromise.
+      if (r.multiKey === enteredKey || seen.has(r.text) || r.compromise.exact) continue;
+      seen.add(r.text); r.label = r.compromise.text; rest.push(r);
+    }
+    return { analysis: A, results: [...sameRes, ...rest], flags: base.flags, ranked: [], considered: base.considered, alternatives: true };
+  }
+
   /* ───────────── 10b. Same notes, other fingerings ───────────── */
   // Every playable fingering on the same instrument and capos that sounds exactly the same pitches as the given
   // one, the given fingering left out. Ordered by hand position, then difficulty.
@@ -1486,7 +1528,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     spellChord, ENHARMONIC, predictKey, traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,
@@ -1512,6 +1554,147 @@ const ICON = {
   right: '<svg class="ico" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg>',
 };
 
+</script>
+<script>
+/* js/chordname.js */
+/* CHORDNAME — reading a typed chord name, and building a sensible piano voicing from it. Pure functions, no page
+   access, like the engine, so they port with it. The engine itself is unchanged: a typed name becomes notes here,
+   and those notes go through the usual translation.
+
+   Conventions (listed for Bill to overrule): 7alt means 7♭9♯9♭13. A 13 chord leaves out the 11 unless the name
+   asks for it, as players do; 9, 11 and 13 chords include the 7th. */
+const ChordName = (function () {
+  'use strict';
+  const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const mod12 = (n) => ((n % 12) + 12) % 12;
+  // Spellings people type: # and b for ♯ and ♭, - and – for minor, o for diminished, Δ for major 7th.
+  function normalise(text) {
+    return String(text || '').trim()
+      .replace(/^([A-Ga-g])#/, '$1♯').replace(/^([A-Ga-g])b/, '$1♭')
+      .replace(/\/([A-Ga-g])#/, '/$1♯').replace(/\/([A-Ga-g])b(?![0-9])/, '/$1♭')
+      .replace(/#/g, '♯').replace(/b(?=\d)/g, '♭').replace(/–/g, '-').replace(/∆/g, 'Δ').replace(/\s+/g, '');
+  }
+  function parseNote(s) {
+    const m = /^([A-Ga-g])(♯|♭)?$/.exec(s);
+    if (!m) return null;
+    const pc = mod12(LETTER_PC[m[1].toUpperCase()] + (m[2] === '♯' ? 1 : m[2] === '♭' ? -1 : 0));
+    return { pc, name: m[1].toUpperCase() + (m[2] || '') };
+  }
+  // Tokens, longest first, so "maj7" is not read as "m" + "aj7".
+  const TOKENS = [
+    ['m(maj', 'minmaj'], ['m(Δ', 'minmaj'], ['mM', 'minmaj'], ['mΔ', 'minmaj'], ['min(maj', 'minmaj'], ['-Δ', 'minmaj'],
+    ['maj', 'maj'], ['Maj', 'maj'], ['Δ', 'maj'], ['M', 'maj'],
+    ['min', 'min'], ['mi', 'min'], ['m', 'min'], ['-', 'min'],
+    ['dim', 'dim'], ['°', 'dim'], ['o', 'dim'], ['ø', 'half'], ['Ø', 'half'],
+    ['aug', 'aug'], ['+', 'aug'],
+    ['sus2', 'sus2'], ['sus4', 'sus4'], ['sus', 'sus4'],
+    ['add', 'add'], ['alt', 'alt'], ['(no3)', 'no3'], ['no3', 'no3'], ['(no5)', 'no5'], ['no5', 'no5'],
+    ['6/9', 'six9'], ['69', 'six9'],
+  ];
+  // Returns { ok, rootPc, rootName, bassPc, bassName, pcs (intervals above the root), understood, message }.
+  function parse(text) {
+    const t = normalise(text);
+    const rm = /^([A-Ga-g](?:♯|♭)?)/.exec(t);
+    if (!rm) return { ok: false, understood: '', message: 'Start with the root: a letter A to G.' };
+    const root = parseNote(rm[1]);
+    let rest = t.slice(rm[1].length), bass = null;
+    const sm = /\/([A-Ga-g](?:♯|♭)?)$/.exec(rest);
+    if (sm && !/\d$/.test(rest.slice(0, sm.index))) { bass = parseNote(sm[1]); rest = rest.slice(0, sm.index); }
+    else if (sm && /^\/[A-Ga-g]/.test(sm[0])) { bass = parseNote(sm[1]); rest = rest.slice(0, sm.index); }
+    const f = { third: 'maj', fifth: 7, seventh: null, majSeventh: false, ext: new Set(), implied9: false, adds: new Set(), alts: new Map(), sus: null, power: false, no3: false, no5: false, six: false, nine: false };
+    let i = 0, understood = root.name;
+    const fail = () => ({ ok: false, understood, message: understood.length > root.name.length ? `Understood ${understood}, but not “${rest.slice(i)}”.` : `Didn't recognise “${rest.slice(i)}”.` });
+    while (i < rest.length) {
+      const ch = rest[i];
+      if (ch === '(' || ch === ')' || ch === ',') { i++; continue; }
+      let tok = null;
+      for (const [s, kind] of TOKENS) if (rest.startsWith(s, i)) { tok = [s, kind]; break; }
+      if (tok) {
+        const [s, kind] = tok;
+        i += s.length;
+        if (kind === 'maj') f.majSeventh = true;
+        else if (kind === 'min') f.third = 'min';
+        else if (kind === 'minmaj') { f.third = 'min'; f.majSeventh = true; }
+        else if (kind === 'dim') { f.third = 'min'; f.fifth = 6; f.dim = true; }
+        else if (kind === 'half') { f.third = 'min'; f.fifth = 6; f.seventh = 10; }
+        else if (kind === 'aug') f.fifth = 8;
+        else if (kind === 'sus2') f.sus = 2;
+        else if (kind === 'sus4') f.sus = 5;
+        else if (kind === 'alt') { f.seventh = 10; f.alts.set(1, 9); f.alts.set(3, 9); f.alts.set(8, 13); }
+        else if (kind === 'no3') f.no3 = true;
+        else if (kind === 'no5') f.no5 = true;
+        else if (kind === 'six9') { f.six = true; f.nine = true; }
+        else if (kind === 'add') {
+          const m = /^(♭|♯)?(\d+)/.exec(rest.slice(i));
+          if (!m) return fail();
+          i += m[0].length;
+          const n = +m[2], a = m[1] === '♭' ? -1 : m[1] === '♯' ? 1 : 0;
+          const iv = { 2: 2, 9: 2, 4: 5, 11: 5, 6: 9, 13: 9 }[n];
+          if (iv == null) return fail();
+          f.adds.add(mod12(iv + a));
+        }
+        understood = root.name + rest.slice(0, i);
+        continue;
+      }
+      const m = /^(♭|♯)?(\d+)/.exec(rest.slice(i));
+      if (!m) return fail();
+      const n = +m[2], a = m[1] === '♭' ? -1 : m[1] === '♯' ? 1 : 0;
+      i += m[0].length;
+      if (a) {
+        // Alterations: ♭5 ♯5 ♭9 ♯9 ♯11 ♭13. Each replaces the plain tone it alters.
+        const iv = { 5: 7, 9: 2, 11: 5, 13: 9 }[n];
+        if (iv == null) return fail();
+        f.alts.set(mod12(iv + a), n);
+        if (n === 5) f.fifth = null;
+      } else if (n === 5 && !f.seventh && i === m[0].length && rest.length === m[0].length) f.power = true;
+      else if (n === 6) f.six = true;
+      else if (n === 7) f.seventh = f.seventh || 10;
+      else if (n === 9) { f.seventh = f.seventh || (f.six ? null : 10); f.nine = true; }
+      else if (n === 11) { f.seventh = f.seventh || 10; f.implied9 = true; f.ext.add(5); }
+      else if (n === 13) { f.seventh = f.seventh || 10; f.implied9 = true; f.ext.add(9); }
+      else if (n === 5) f.fifth = 7;
+      else return fail();
+
+      understood = root.name + rest.slice(0, i);
+    }
+    // Assemble the intervals above the root.
+    const pcs = new Set([0]);
+    if (f.power) pcs.add(7);
+    else {
+      if (f.sus) pcs.add(f.sus); else if (!f.no3) pcs.add(f.third === 'min' ? 3 : 4);
+      if (f.fifth != null && !f.no5) pcs.add(f.fifth);
+      if (f.dim && f.seventh === 10 && !f.half) { /* "dim7" written as dim + 7 is a diminished 7th */ pcs.add(9); f.seventh = null; }
+      if (f.seventh) pcs.add(f.majSeventh ? 11 : f.seventh);
+      else if (f.majSeventh && (f.ext.size || f.nine)) pcs.add(11);
+      if (f.six) pcs.add(9);
+      if (f.nine) pcs.add(2);
+      for (const e of f.ext) pcs.add(e);
+      for (const a of f.adds) pcs.add(a);
+      // An 11 or 13 implies the 9th, unless the name alters it (13♭9 has a flat 9 instead).
+      if (f.implied9 && ![...f.alts.values()].includes(9)) pcs.add(2);
+      for (const [a] of f.alts) pcs.add(a);
+    }
+    const out = [...pcs].sort((a, b) => a - b);
+    // Tones the name implies that players often leave out: the 5th, and the 9th under an 11 or 13.
+    const optional = [7].concat(f.implied9 ? [2] : []).filter((iv) => pcs.has(iv));
+    return { ok: true, optional, rootPc: root.pc, rootName: root.name, bassPc: bass ? bass.pc : null, bassName: bass ? bass.name : null, intervals: out, pcs: out.map((iv) => mod12(root.pc + iv)), understood: root.name + rest + (bass ? '/' + bass.name : '') };
+  }
+
+  // A sensible piano voicing: the bass (the root, or the slash note) around C3, the other tones in close position
+  // above it from about C4, the top note the highest chord tone. With more than six upper tones the 5th goes first.
+  function voicing(parsed) {
+    const bassPc = parsed.bassPc != null ? parsed.bassPc : parsed.rootPc;
+    const bass = 48 + bassPc;
+    let upper = parsed.intervals.map((iv) => mod12(parsed.rootPc + iv)).filter((pc) => pc !== bassPc || parsed.bassPc != null);
+    if (parsed.bassPc != null) upper = upper.filter((pc) => pc !== parsed.bassPc);
+    const fifth = mod12(parsed.rootPc + 7);
+    if (upper.length > 6 && upper.includes(fifth)) upper = upper.filter((pc) => pc !== fifth);
+    const pitches = upper.map((pc) => 60 + mod12(pc)).sort((a, b) => a - b);
+    return [bass, ...pitches.filter((p) => p > bass)];
+  }
+
+  return { parse, voicing, normalise };
+})();
 </script>
 <script>
 /* js/engine-client.js */
@@ -1553,6 +1736,7 @@ const Eng = {
         if (op === 'translate') resolve(E.translate(arg));
         else if (op === 'translateTop') { const r = E.translate(arg).results[0]; resolve(r ? { score: r.score, bassTier: r.bassTier } : null); }
         else if (op === 'sameNotes') resolve(E.sameNotes(arg));
+        else if (op === 'alternatives') resolve(E.alternatives(arg));
         else if (op === 'lab') {
           const byId = new Map(arg.instruments.map((i) => [i.id, i])), find = (id) => (id === 'piano' ? E.PIANO : byId.get(id));
           resolve({ rows: arg.tests.map((tc) => E.runTest(tc, find, arg.weights || {}, {})), times: null });
@@ -1858,6 +2042,8 @@ function recompute(delay, flash) {
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) || isStaff(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  // Same instrument, same capos: show other ways to play this sound rather than the chord Bill already has.
+  if (src.kind === 'strings' && S.settings.src === S.settings.tgt && JSON.stringify(S.work.srcCapos) === JSON.stringify(S.work.tgtCapos)) ses.req.alternatives = true;
   // Notation can show any pitches exactly, so a staff target is not translated: it notates the source.
   if (isStaff(tgt)) { ses.out = { analysis: ses.A, results: [staffResult(src)], flags: [] }; ses.pending = false; ses.card = 0; return; }
   ses.pending = true;
@@ -1867,7 +2053,8 @@ function recompute(delay, flash) {
 }
 async function translateNow(gen, req) {
   let out;
-  try { out = await Eng.call('translate', req); } catch (e) { out = E.translate(req); }
+  const op = req.alternatives ? 'alternatives' : 'translate';
+  try { out = await Eng.call(op, req); } catch (e) { out = E[op](req); }
   if (gen !== ses.gen) return;
   ses.out = out; ses.pending = false; ses.card = 0;
   renderSource(); renderBridge(); renderTarget();
@@ -2082,7 +2269,7 @@ function renderSource() {
   $('#srcRow').innerHTML = `<span class="rubric srcname">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
     `<button class="iconbtn" data-act="view" data-d="-1" aria-label="${piano ? 'Show lower keys' : 'Show lower frets'}">${ICON.left}</button><button class="iconbtn" data-act="view" data-d="1" aria-label="${piano ? 'Show higher keys' : 'Show higher frets'}">${ICON.right}</button>` +
     `<button class="txtbtn" data-act="octchord" data-d="-1" id="octDown" aria-label="Move the chord down an octave">Oct ↓</button><button class="txtbtn" data-act="octchord" data-d="1" id="octUp" aria-label="Move the chord up an octave">Oct ↑</button>` +
-    (piano ? '' : `<button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
+    (piano ? '' : `<button class="txtbtn ${S.settings.tgt === S.settings.src ? 'on' : ''}" data-act="alternatives" aria-pressed="${S.settings.tgt === S.settings.src}"><span class="long">Alternatives</span><span class="short">Alts</span></button><button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
     `<button class="txtbtn" data-act="clear">Clear</button>`;
   const W = box.clientWidth, H = box.clientHeight;
   if (W < 20 || H < 20) return;
@@ -2131,11 +2318,16 @@ function compText() {
 function renderBridge() {
   const A = ses.A, mid = $('#bridgeMid');
   $('#saveTest').disabled = !ses.picked;
+  if (ses.naming) return renderNaming(mid);
   if (!A || A.empty) {
-    mid.innerHTML = `<div class="chord empty">Enter a voicing</div><div class="lines"><div class="line colour">Tap the ${isPiano(side('src')) ? 'keys' : 'frets'} on the source strip to begin.</div></div>`;
+    mid.innerHTML = `<button class="chord empty" data-act="namechord" aria-label="Type a chord name">Enter a voicing</button><div class="lines"><div class="line colour">Tap the ${isPiano(side('src')) ? 'keys' : isStaff(side('src')) ? 'staff' : 'frets'} on the source strip, or tap here to type a chord name.</div></div>`;
     return;
   }
-  let h = `<button class="chord" data-act="showcomp" aria-label="Chord ${esc(A.name)}. Show what the translation gave up.">${esc(A.name)}</button>`;
+  // A typed name stays on show while the notes still belong to it; the engine's own reading is noted in Detailed.
+  const typed = ses.typed && A.pcs.every((pc) => ses.typed.pcs.includes(pc)) ? ses.typed.name : null;
+  const label = typed || A.name;
+  let h = `<button class="chord" data-act="namechord" aria-label="Chord ${esc(label)}. Tap to type a chord name; press and hold to show what the translation gave up.">${esc(label)}</button>`;
+  if (typed && typed !== A.name && detailed()) h += `<div class="line">The engine reads these notes as ${esc(A.name)}.</div>`;
   if (ses.reasons) h += `<div class="reasons" id="reasons">${Object.keys(E.CHIP_KEYS).map((k) => `<button data-act="reason" data-k="${k}" class="${ses.reasons[k] ? 'on' : ''}"><span>${k}</span></button>`).join('')}</div>`;
   else {
     h += `<div class="lines ${ses.showComp ? 'showcomp' : ''}" id="lines"><div class="line colour">${esc(A.colourLine)}</div><div class="line comp">${compText()}</div></div>`;
@@ -2143,6 +2335,48 @@ function renderBridge() {
   }
   mid.innerHTML = h;
 }
+/* Typing a chord name: the bridge becomes a text field with handy keys. A name becomes a piano voicing, which is
+   placed on the source surface (translated onto it first when the source is a stringed instrument). */
+const NAME_KEYS = ['♯', '♭', 'maj', 'm', '7', '9', '11', '13', 'sus', 'ø', '°', 'add', '/'];
+function renderNaming(mid) {
+  const n = ses.naming;
+  mid.innerHTML = `<form class="naming" id="nameForm" autocomplete="off"><input id="chordInput" class="chordinput" value="${esc(n.text)}" placeholder="D7♯9" aria-label="Chord name" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+    <button type="submit" class="pill primary"><span>Show</span></button><button type="button" class="txtbtn" data-act="namecancel">Cancel</button></form>
+    <div class="namekeys">${NAME_KEYS.map((k) => `<button type="button" class="namekey" data-act="namekey" data-k="${esc(k)}">${esc(k)}</button>`).join('')}</div>
+    ${n.error ? `<div class="line nameerr">${esc(n.error)}</div>` : ''}`;
+  const inp = $('#chordInput');
+  inp.addEventListener('input', () => { n.text = inp.value; });
+  $('#nameForm').addEventListener('submit', (e) => { e.preventDefault(); submitName(); });
+  if (n.focus !== false) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+async function submitName() {
+  const n = ses.naming, parsed = ChordName.parse(n.text);
+  if (!parsed.ok) {
+    n.error = `Didn't recognise that. Try Cmaj7 or D7♯9.${parsed.understood ? ` Understood so far: ${parsed.understood}.` : ''}`;
+    return renderBridge();
+  }
+  const pitches = ChordName.voicing(parsed), inst = side('src');
+  ses.typed = { name: ChordName.normalise(n.text).replace(/^([a-g])/, (m) => m.toUpperCase()), pcs: parsed.pcs };
+  if (isStaff(inst)) { S.work.staff = pitches; S.work.staffSpell = {}; S.work.staffLast = null; }
+  else if (isPiano(inst)) S.work.piano = pitches;
+  else {
+    const r = await Eng.call('translate', { source: { kind: 'piano', pitches }, target: inst, capos: S.work.srcCapos, options: opts() });
+    if (!r.results.length) { n.error = `No playable ${parsed.understood} on the ${inst.name.toLowerCase()} here.`; return renderBridge(); }
+    S.work.fing[inst.id] = r.results[0].fingering.map((f) => (f < 0 ? null : f));
+  }
+  ses.naming = null; ses.fit.src = true; save(true); recompute(0, true); render();
+}
+// Keep the text field focused while the handy keys are pressed, so the iPhone keyboard stays up.
+document.addEventListener('pointerdown', (e) => { if (e.target.closest('.namekey')) e.preventDefault(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ses.naming) { ses.naming = null; renderBridge(); } });
+// Press and hold the chord name to bring back the compromise line (a tap now opens the name field).
+let holdT = 0;
+document.addEventListener('pointerdown', (e) => {
+  if (!e.target.closest('.chord:not(.empty)')) return;
+  ses.longPressed = false;
+  holdT = setTimeout(() => { ses.longPressed = true; if (ses.out) flashComp(); }, 500);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) document.addEventListener(ev, () => clearTimeout(holdT));
 function flashComp() {
   ses.showComp = true; clearTimeout(ses.compT);
   const l = $('#lines'); if (l) { l.classList.add('showcomp'); $('.line.comp', l).innerHTML = compText(); }
@@ -2190,7 +2424,7 @@ function renderTarget() {
       <span class="pos">${pos}</span>
       <button class="fig" data-act="why" data-i="${i}" aria-label="Sound score ${fmt(res.score)}. Show why."><span>Score</span> <b>${fmt(res.score)}</b></button>
       <span class="fig"><span class="long">Difficulty</span><span class="short">Diff</span> <b>${fmt(res.difficulty)}</b></span>
-      <span class="tab grow">${detailed() ? esc(res.kind === 'piano' ? res.label : res.text) : ''}</span>
+      <span class="tab grow">${ses.out.alternatives ? esc(res.label || '') : detailed() ? esc(res.kind === 'piano' ? res.label : res.text) : ''}</span>
       <button class="iconbtn star ${fav ? 'on' : ''}" data-act="star" data-i="${i}" aria-label="${fav ? 'Remove from' : 'Add to'} favourites" aria-pressed="${fav}">${ICON.star}</button>
       <button class="use ${picked ? 'done' : ''}" data-act="use" data-i="${i}"><span>${picked ? 'Chosen' : 'Use this'}</span></button></div></article>`;
   });
@@ -2283,6 +2517,12 @@ const ACT = {
     else { const c = currentCard(); if (!c) return; where = document.querySelectorAll('#cards .card')[ses.card]; sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt)); }
     if (sched) lightUp(where, sched);
   },
+  // One tap sets the target to the source instrument (same capos); a second tap restores the previous target.
+  alternatives() {
+    if (S.settings.tgt === S.settings.src && S.work.prevTgt) { S.settings.tgt = S.work.prevTgt; S.work.tgtCapos = S.work.prevTgtCapos || []; S.work.prevTgt = null; }
+    else { S.work.prevTgt = S.settings.tgt; S.work.prevTgtCapos = clone(S.work.tgtCapos); S.settings.tgt = S.settings.src; S.work.tgtCapos = clone(S.work.srcCapos); }
+    save(); recompute(0, true); render();
+  },
   swap() {
     const cur = currentCard(), a = S.settings.src, b = S.settings.tgt;
     S.settings.src = b; S.settings.tgt = a;
@@ -2343,7 +2583,7 @@ function usePick(i) {
   const losers = ses.out.results.filter((r) => r.multiKey !== res.multiKey), strength = res.custom ? 2 : 1, tgt = side('tgt');
   S.taste = E.learn(S.taste, { ctxKey: ses.ctx, winner: res, losers, strength });
   const capos = isPiano(tgt) ? [] : clone(S.work.tgtCapos);
-  S.picks.push({ t: Date.now(), ctx: ses.ctx, chord: ses.A.name, src: packSource(), tgt: tgt.id, capos, win: packVoicing(res), shown: ses.out.results.map((r) => r.text), custom: !!res.custom });
+  S.picks.push({ t: Date.now(), ctx: ses.ctx, chord: ses.A.name, src: packSource(), tgt: tgt.id, capos, win: packVoicing(res), shown: ses.out.results.map((r) => r.text), custom: !!res.custom, alternatives: !!ses.out.alternatives });
   if (S.picks.length > 1500) S.picks.splice(0, S.picks.length - 1500);
   S.translations.unshift({ id: 't' + Date.now(), t: Date.now(), chord: ses.A.name, src: packSource(), srcName: side('src').name, tgt: tgt.id, tgtName: tgt.name, capos, voicing: packVoicing(res), text: res.text });
   if (S.translations.length > 300) S.translations.length = 300;
@@ -2378,6 +2618,18 @@ function lightUp(where, sched) {
     }, Math.max(0, ev.at * 1000));
   }
 }
+
+Object.assign(ACT, {
+  namechord() {
+    if (ses.longPressed) { ses.longPressed = false; return; }
+    ses.naming = { text: '', error: '' }; renderBridge();
+  },
+  namecancel() { ses.naming = null; renderBridge(); },
+  namekey(el) {
+    const inp = $('#chordInput'), k = el.dataset.k, a = inp.selectionStart ?? inp.value.length, b = inp.selectionEnd ?? a;
+    inp.setRangeText(k, a, b, 'end'); ses.naming.text = inp.value; inp.focus();
+  },
+});
 </script>
 <script>
 /* js/sheets.js */
