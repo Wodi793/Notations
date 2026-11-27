@@ -241,3 +241,22 @@ button.chord { cursor: text; }
 .namekey:active { background: var(--raised); }
 .nameerr { color: var(--warn); padding-top: 4px; }
 @media (max-width: 599px) { #srcRow [data-act="view"] { display: none; } }
+/* Progression tray: a slim row of chord chips under the bridge band. */
+.tray { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0; padding-top: 4px; }
+.trayadd { margin: 0 auto; }
+.tray-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.tray-chips::-webkit-scrollbar { display: none; }
+.tchip { flex: none; height: 36px; min-width: 44px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--hairline); background: var(--surface); font-family: var(--serif); font-size: 16px; color: var(--text); white-space: nowrap; touch-action: pan-x; transition: background .2s var(--ease), border-color .2s var(--ease); }
+.tchip small { font-family: var(--sans); font-size: 11px; color: var(--text2); margin-left: 6px; }
+.tchip.open { border-color: var(--accent); }
+.tchip.playing { background: var(--accent); color: var(--ink); }
+.tchip.locked::after { content: "•"; margin-left: 6px; color: var(--text2); }
+.tchip.add { font-family: var(--sans); color: var(--text2); }
+.tchip.dragging { opacity: .7; z-index: 2; position: relative; }
+.tray-ctl { flex: none; display: flex; align-items: center; gap: 2px; }
+.tray-one { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.tempo output { min-width: 34px; font-size: 13px; }
+.tempo button { width: 32px; }
+.keybtn { font-family: var(--serif); font-size: 15px; color: var(--text); }
+@media (max-width: 599px) { .tray { flex-wrap: wrap; } .tray-ctl { width: 100%; justify-content: space-between; } }
+.warnsub { color: var(--warn) !important; white-space: normal !important; }

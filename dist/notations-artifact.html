@@ -245,6 +245,25 @@ button.chord { cursor: text; }
 .namekey:active { background: var(--raised); }
 .nameerr { color: var(--warn); padding-top: 4px; }
 @media (max-width: 599px) { #srcRow [data-act="view"] { display: none; } }
+/* Progression tray: a slim row of chord chips under the bridge band. */
+.tray { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0; padding-top: 4px; }
+.trayadd { margin: 0 auto; }
+.tray-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.tray-chips::-webkit-scrollbar { display: none; }
+.tchip { flex: none; height: 36px; min-width: 44px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--hairline); background: var(--surface); font-family: var(--serif); font-size: 16px; color: var(--text); white-space: nowrap; touch-action: pan-x; transition: background .2s var(--ease), border-color .2s var(--ease); }
+.tchip small { font-family: var(--sans); font-size: 11px; color: var(--text2); margin-left: 6px; }
+.tchip.open { border-color: var(--accent); }
+.tchip.playing { background: var(--accent); color: var(--ink); }
+.tchip.locked::after { content: "•"; margin-left: 6px; color: var(--text2); }
+.tchip.add { font-family: var(--sans); color: var(--text2); }
+.tchip.dragging { opacity: .7; z-index: 2; position: relative; }
+.tray-ctl { flex: none; display: flex; align-items: center; gap: 2px; }
+.tray-one { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.tempo output { min-width: 34px; font-size: 13px; }
+.tempo button { width: 32px; }
+.keybtn { font-family: var(--serif); font-size: 15px; color: var(--text); }
+@media (max-width: 599px) { .tray { flex-wrap: wrap; } .tray-ctl { width: 100%; justify-content: space-between; } }
+.warnsub { color: var(--warn) !important; white-space: normal !important; }
 </style>
 
 <div id="app" class="roomy">
@@ -288,6 +307,7 @@ button.chord { cursor: text; }
         </div>
         <button class="txtbtn only-roomy" id="saveTest" data-act="savetest">Save as test</button>
       </div>
+      <div class="tray" id="tray" aria-label="Progression"></div>
     </section>
     <section class="strip" data-side="tgt" aria-label="Translation">
       <div class="strip-main"><div class="strip-body" id="tgtBody"></div></div>
@@ -306,11 +326,12 @@ button.chord { cursor: text; }
 </aside>
 <div class="toast" id="toast" role="status"></div>
 
-<script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = [{"id":"s01","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"mandolin","accept":[[5,2,3,3],[0,2,3,3],[-1,2,3,3]],"note":"G should stay on top. The usual shapes put it on the E course."},{"id":"s02","name":"Cmaj7, B on top","source":{"kind":"piano","notes":"C4 E4 G4 B4"},"target":"mandolin","accept":[[5,2,2,-1],[5,5,7,7],[0,2,2,-1]],"note":"Root, 3rd and 7th with B on top, or the four-course shape an octave up."},{"id":"s03","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"mandolin","accept":[[0,0,2,1],[0,3,2,1]],"note":"The open G7. F has to move up an octave."},{"id":"s04","name":"D7♯9","source":{"kind":"piano","notes":"D3 F#3 C4 F4"},"target":"mandolin","accept":[[7,4,3,1],[-1,4,3,1]],"note":"The whole voicing an octave up, or 3, ♭7, ♯9 without the root."},{"id":"s05","name":"Am7, 9th on top","source":{"kind":"piano","notes":"A3 C4 E4 G4 B4"},"target":"mandolin","accept":[[5,5,2,-1],[2,5,3,7],[5,5,7,7]],"note":"Five notes on four courses: the root or the 5th has to go, the 9th stays."},{"id":"s06","name":"F/A","source":{"kind":"piano","notes":"A3 C4 F4"},"target":"mandolin","accept":[[2,3,3,1],[2,3,3,-1],[2,3,0,1]],"note":"A on the bottom comes first."},{"id":"s07","name":"C/E","source":{"kind":"piano","notes":"E4 G4 C5"},"target":"mandolin","accept":[[9,5,3,-1]],"note":"Playable at pitch."},{"id":"s08","name":"F triad, C on top","source":{"kind":"piano","notes":"F4 A4 C5"},"target":"uke","accept":[[2,0,1,3],[2,-1,1,3],[5,5,5,3]],"note":"The everyday F with a high C. The open C string sits below the source."},{"id":"s09","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"uke","accept":[[0,0,0,-1],[0,0,0,3]],"note":"Three open strings give the exact pitches."},{"id":"s10","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"uke-lowg","accept":[[0,2,1,2]],"note":"The standard G7 shape, low G on the bottom. It puts B on top, not F."},{"id":"s11","name":"Open G","source":{"kind":"strings","instrument":"guitar","fingering":[3,2,0,0,0,3]},"target":"mandolin","accept":[[0,0,2,3],[7,5,2,3]],"note":"Open G, or the chop shape."},{"id":"s12","name":"E7 shape","source":{"kind":"strings","instrument":"guitar","fingering":[0,2,0,1,0,0]},"target":"mandolin","accept":[[1,0,2,0]],"note":"The standard mandolin E7. G♯ ends up on the bottom."},{"id":"s13","name":"Open Cadd9","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,3,3]},"target":"mandolin","accept":[[5,2,5,3],[0,2,5,3]],"note":"Root, 3rd, 9th, 5th with G on top."},{"id":"s14","name":"DADGAD Dsus4, all open","source":{"kind":"strings","instrument":"guitar-dadgad","fingering":[0,0,0,0,0,0]},"target":"mandolin","accept":[[7,5,0,-1],[7,5,5,-1],[7,5,0,10]],"note":"The G-against-A rub and the D on top pull against each other."},{"id":"s15","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"guitar","accept":[[-1,-1,12,12,12,15],[-1,-1,0,0,0,3],[3,2,0,0,0,3]],"note":"At pitch up the neck, or the same shape an octave down."},{"id":"s16","name":"A minor","source":{"kind":"strings","instrument":"mandolin","fingering":[2,2,3,0]},"target":"guitar","accept":[[-1,0,2,2,1,0],[-1,-1,2,2,1,0]],"note":"A guitarist would play open Am, an octave down."},{"id":"s17","name":"Close G triad","source":{"kind":"piano","notes":"G3 B3 D4"},"target":"banjo-g","accept":[[-1,-1,0,0,0],[-1,0,0,0,0],[0,0,0,0,0]],"note":"Open strings. The 5th-string drone sits above the source top."},{"id":"s18","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"banjo-g","accept":[[-1,-1,5,5,5],[0,-1,5,5,5],[0,2,0,1,2]],"note":"The barre at 5, or the open C shape with the drone on top."},{"id":"s19","name":"A, capo at 2","source":{"kind":"piano","notes":"A3 C#4 E4 A4"},"target":"guitar","capoFret":2,"accept":[[5,4,0,0,0,5],[-1,-1,7,6,5,5],[-1,-1,0,0,0,5]],"note":"G shape over the capo, or the barre at 5."},{"id":"s20","name":"Open C","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,1,0]},"target":"piano","acceptNotes":["C3 E3 G3 C4 E4"],"note":"The piano can play the exact pitches. This case only proves the path works."},{"id":"s21","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"piano","acceptNotes":["D4 G4 B4 G5"],"note":"Exact pitches again. This case only proves the path works."}];</script>
+<script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = [{"id":"s01","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"mandolin","accept":[[5,2,3,3],[0,2,3,3],[-1,2,3,3]],"note":"G should stay on top. The usual shapes put it on the E course."},{"id":"s02","name":"Cmaj7, B on top","source":{"kind":"piano","notes":"C4 E4 G4 B4"},"target":"mandolin","accept":[[5,2,2,-1],[5,5,7,7],[0,2,2,-1]],"note":"Root, 3rd and 7th with B on top, or the four-course shape an octave up."},{"id":"s03","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"mandolin","accept":[[0,0,2,1],[0,3,2,1]],"note":"The open G7. F has to move up an octave."},{"id":"s04","name":"D7♯9","source":{"kind":"piano","notes":"D3 F#3 C4 F4"},"target":"mandolin","accept":[[7,4,3,1],[-1,4,3,1]],"note":"The whole voicing an octave up, or 3, ♭7, ♯9 without the root."},{"id":"s05","name":"Am7, 9th on top","source":{"kind":"piano","notes":"A3 C4 E4 G4 B4"},"target":"mandolin","accept":[[5,5,2,-1],[2,5,3,7],[5,5,7,7]],"note":"Five notes on four courses: the root or the 5th has to go, the 9th stays."},{"id":"s06","name":"F/A","source":{"kind":"piano","notes":"A3 C4 F4"},"target":"mandolin","accept":[[2,3,3,1],[2,3,3,-1],[2,3,0,1]],"note":"A on the bottom comes first."},{"id":"s07","name":"C/E","source":{"kind":"piano","notes":"E4 G4 C5"},"target":"mandolin","accept":[[9,5,3,-1]],"note":"Playable at pitch."},{"id":"s08","name":"F triad, C on top","source":{"kind":"piano","notes":"F4 A4 C5"},"target":"uke","accept":[[2,0,1,3],[2,-1,1,3],[5,5,5,3]],"note":"The everyday F with a high C. The open C string sits below the source."},{"id":"s09","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"uke","accept":[[0,0,0,-1],[0,0,0,3]],"note":"Three open strings give the exact pitches."},{"id":"s10","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"uke-lowg","accept":[[0,2,1,2]],"note":"The standard G7 shape, low G on the bottom. It puts B on top, not F."},{"id":"s11","name":"Open G","source":{"kind":"strings","instrument":"guitar","fingering":[3,2,0,0,0,3]},"target":"mandolin","accept":[[0,0,2,3],[7,5,2,3]],"note":"Open G, or the chop shape."},{"id":"s12","name":"E7 shape","source":{"kind":"strings","instrument":"guitar","fingering":[0,2,0,1,0,0]},"target":"mandolin","accept":[[1,0,2,0]],"note":"The standard mandolin E7. G♯ ends up on the bottom."},{"id":"s13","name":"Open Cadd9","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,3,3]},"target":"mandolin","accept":[[5,2,5,3],[0,2,5,3]],"note":"Root, 3rd, 9th, 5th with G on top."},{"id":"s14","name":"DADGAD Dsus4, all open","source":{"kind":"strings","instrument":"guitar-dadgad","fingering":[0,0,0,0,0,0]},"target":"mandolin","accept":[[7,5,0,-1],[7,5,5,-1],[7,5,0,10]],"note":"The G-against-A rub and the D on top pull against each other."},{"id":"s15","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"guitar","accept":[[-1,-1,12,12,12,15],[-1,-1,0,0,0,3],[3,2,0,0,0,3]],"note":"At pitch up the neck, or the same shape an octave down."},{"id":"s16","name":"A minor","source":{"kind":"strings","instrument":"mandolin","fingering":[2,2,3,0]},"target":"guitar","accept":[[-1,0,2,2,1,0],[-1,-1,2,2,1,0]],"note":"A guitarist would play open Am, an octave down."},{"id":"s17","name":"Close G triad","source":{"kind":"piano","notes":"G3 B3 D4"},"target":"banjo-g","accept":[[-1,-1,0,0,0],[-1,0,0,0,0],[0,0,0,0,0]],"note":"Open strings. The 5th-string drone sits above the source top."},{"id":"s18","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"banjo-g","accept":[[-1,-1,5,5,5],[0,-1,5,5,5],[0,2,0,1,2]],"note":"The barre at 5, or the open C shape with the drone on top."},{"id":"s19","name":"A, capo at 2","source":{"kind":"piano","notes":"A3 C#4 E4 A4"},"target":"guitar","capoFret":2,"accept":[[5,4,0,0,0,5],[-1,-1,7,6,5,5],[-1,-1,0,0,0,5]],"note":"G shape over the capo, or the barre at 5."},{"id":"s20","name":"Open C","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,1,0]},"target":"piano","acceptNotes":["C3 E3 G3 C4 E4"],"note":"The piano can play the exact pitches. This case only proves the path works."},{"id":"s21","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"piano","acceptNotes":["D4 G4 B4 G5"],"note":"Exact pitches again. This case only proves the path works."}]; window.NOTATIONS_PROG_CASES = {"about":"Progression and key-prediction cases. Progressions are checked for properties, not exact answers: the top line moves by step (at most a whole tone) where some playable choice allows it, common tones are held where the chords share notes, and no hand shift is longer than the comfortable reach.","progressions":[{"id":"p1","name":"ii–V–I in C, piano to mandolin","target":"mandolin","chords":["D3 F3 A3 C4","G2 F3 B3 D4","C3 E3 G3 B3"]},{"id":"p2","name":"I–vi–IV–V in C, piano to low-G ukulele","target":"uke-lowg","chords":["C3 E3 G3","A2 C3 E3","F2 A2 C3","G2 B2 D3"]},{"id":"p3","name":"ii–V–I in B♭, piano to guitar","target":"guitar","chords":["C3 E♭3 G3 B♭3","F2 E♭3 A3 C4","B♭2 D3 F3 A3"]},{"id":"p4","name":"Eight chords, piano to guitar (timing)","target":"guitar","chords":["C3 E3 G3 B3","A2 C3 E3 G3","D3 F3 A3 C4","G2 F3 B3 D4","E3 G3 B3 D4","A2 C#3 E3 G3","D3 F3 A3 C4","G2 F3 B3 E4"]}],"keys":[{"chords":["D3 F3 A3 C4","G3 B3 D4 F4","C4 E4 G4 B4"],"key":"C major"},{"chords":["A3 C4 E4","D4 F4 A4","E3 G#3 B3 D4","A3 C4 E4"],"key":"A minor"},{"chords":["G3 B3 D4","C4 E4 G4","D4 F#4 A4","G3 B3 D4"],"key":"G major"},{"chords":["E3 G#3 B3","A3 C#4 E4","B3 D#4 F#4","E3 G#3 B3"],"key":"E major"},{"chords":["D3 F3 A3","A2 C#3 E3 G3","D3 F3 A3"],"key":"D minor"},{"chords":["F3 A3 C4","Bb3 D4 F4","C4 E4 G4 Bb4","F3 A3 C4"],"key":"F major"},{"chords":["C4 E4 G4"],"key":"C major"}]};</script>
 <script type="text/plain" id="worker-src">
 /* ENGINE WORKER — runs the engine off the screen's thread. Each request carries an id; the page drops answers
    to requests it has moved past. In the artifact build this file is joined to the engine's source in a blob. */
 if (typeof Engine === 'undefined') importScripts('engine.js');
+if (typeof ProgCheck === 'undefined') importScripts('progcheck.js');
 const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 const OPS = {
   ping: () => 'pong',
@@ -319,6 +340,8 @@ const OPS = {
   translateTop: (req) => { const r = Engine.translate(req).results[0]; return r ? { score: r.score, bassTier: r.bassTier } : null; },
   sameNotes: (req) => Engine.sameNotes(req),
   alternatives: (req) => Engine.alternatives(req),
+  progression: (req) => Engine.progression(req),
+  labProgressions: ({ data, instruments, comfortMm }) => { const byId = new Map(instruments.map((i) => [i.id, i])); return ProgCheck.run(Engine, data, (id) => byId.get(id), comfortMm); },
   // The Lab: every case, plus timings measured on this device.
   lab: ({ tests, instruments, weights, timing }) => {
     const byId = new Map(instruments.map((i) => [i.id, i]));
@@ -804,6 +827,8 @@ const Engine = (function () {
     topOctave: 8, topDifferent: 40, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
     registerPerSemitone: 1, registerCap: 30, lowMud: 6, doubledThird: 6, doubledColour: 8,
     rootMissing: 4, fifthMissing: 1, highPosition: 2, definingLost: 60, tieWindow: 3, easeWeight: 2,
+    // Voice leading between neighbouring chords in a progression.
+    vlMove: 0.5, vlTopLeap: 6, vlCommon: 2, vlShift: 0.5, vlShiftSq: 0.15, vlFar: 14,
   };
   const WEIGHT_INFO = {
     topOctave: ['Top note moved an octave', 'per octave'],
@@ -820,11 +845,17 @@ const Engine = (function () {
     rootMissing: ['Root missing', ''],
     fifthMissing: ['5th missing', ''],
     highPosition: ['High position', 'per fret above 12'],
+    vlMove: ['Voice movement to the next chord', 'per semitone'],
+    vlTopLeap: ['Top line leaps more than a major 3rd', ''],
+    vlCommon: ['Credit for each note held', ''],
+    vlShift: ['Hand shift', 'per fret'],
+    vlShiftSq: ['Hand shift, extra for big jumps', 'per fret squared'],
+    vlFar: ['Hand shift past the comfortable reach', ''],
     definingLost: ['Defining tone lost (rule relaxed)', 'each'],
     tieWindow: ['Tie window where difficulty decides', 'points'],
     easeWeight: ['Prefer easier: points per difficulty step', ''],
   };
-  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing', 'highPosition'];
+  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing', 'highPosition', 'vlMove', 'vlTopLeap', 'vlCommon', 'vlShift'];
   const DEFAULT_OPTIONS = { comfortMm: 105, impossibleMm: 135, preferEasier: false, maxResults: 4, ranked: 0 };
 
   // Source and result pitches paired in sorted order: lowest with lowest,
@@ -1105,6 +1136,14 @@ const Engine = (function () {
 
   function finishStrings(P, A, W, opt, c) {
     const V = c.V, sc = scoreVoicing(A, V, W, true), d = difficultyOf(P, c.fr, opt, true);
+    if (opt.prev || opt.next) {
+      const me = { mains: V.mains, fingering: c.fr, position: V.pos };
+      for (const [other, dir] of [[opt.prev, 'prev'], [opt.next, 'next']]) {
+        if (!other) continue;
+        const t = transition(dir === 'prev' ? other : me, dir === 'prev' ? me : other, W, dir);
+        sc.score = r2(sc.score + t.cost); for (const l of t.lines) sc.breakdown.push(l);
+      }
+    }
     const comp = compromiseOf(A, V, sc.breakdown, c.tier);
     const flags = [];
     if (c.tier === 3) flags.push({ code: 'needsBass', text: 'This one needs a bass instrument or a second player.' });
@@ -1135,10 +1174,12 @@ const Engine = (function () {
     return (source.pitches || []).map((p) => ({ pitch: p, weight: 1 }));
   }
 
+  // req.previousVoicing / req.nextVoicing: the neighbouring chords' chosen voicings ({pitches, fingering?}). With
+  // neither, translation is exactly as before (the parity tests confirm it).
   function translate(req) {
-    // req.previousVoicing is accepted and ignored: the hook for voice leading later.
     const W = Object.assign({}, DEFAULT_WEIGHTS, req.weights || {});
     const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    opt.prev = neighbour(req.previousVoicing, req.target); opt.next = neighbour(req.nextVoicing, req.target);
     const A = analyze(sourceNotes(req.source));
     const flags = [];
     if (A.empty) return { analysis: A, results: [], flags, ranked: [] };
@@ -1148,10 +1189,18 @@ const Engine = (function () {
     for (const pc of A.definingPcs) need |= 1 << pc;
     // Score every playable fingering into flat arrays: fingerings, scores and bass tiers.
     const n = P.n, frs = [], scores = [], tiers = [], SV = scratchVoicing();
+    // With neighbouring chords given, each candidate also pays for the move from the previous voicing and to the next.
+    const prev = opt.prev, next = opt.next;
     const visit = (sel) => {
       for (let c = 0; c < n; c++) frs.push(sel[c]);
       voicingInto(P, sel, SV);
-      scores.push(scoreVoicing(A, SV, W, false).score); tiers.push(tierOf(A, SV));
+      let sc = scoreVoicing(A, SV, W, false).score;
+      if (prev || next) {
+        const me = { mains: SV.mains, fingering: sel, position: SV.pos };
+        if (prev) sc = r2(sc + transition(prev, me, W, 'prev', true).cost);
+        if (next) sc = r2(sc + transition(me, next, W, 'next', true).cost);
+      }
+      scores.push(sc); tiers.push(tierOf(A, SV));
     };
     let minSound = Math.min(3, A.pcs.length, P.n), found = 0, relaxed = false;
     for (; minSound >= 1 && !found; minSound--) {
@@ -1341,6 +1390,142 @@ const Engine = (function () {
     return best;
   }
 
+  /* ───────────── 9b. Voice leading between chords ───────────── */
+  // A neighbouring voicing as the transition cost needs it: sorted main pitches, fingering, hand position.
+  function neighbour(v, target) {
+    if (!v) return null;
+    let mains = v.mains || v.pitches;
+    if (!mains && v.fingering && target && target.courses) mains = voicingOf(prepare(target, v.capos || []), v.fingering).mains;
+    if (!mains || !mains.length) return null;
+    let position = v.position;
+    if (position == null && v.fingering) { position = 0; for (const f of v.fingering) if (f > 0 && (position === 0 || f < position)) position = f; }
+    return { mains: mains.slice().sort(num), fingering: v.fingering || null, position: position == null ? null : position, scale: target && target.scaleLengthMm };
+  }
+  // Pairs the voices of two sorted chords at the least total movement, keeping their order (lowest with lowest,
+  // highest with highest); a chord with more notes splits a voice. Returns the pairing and the total semitones.
+  function pairVoices(a, b) {
+    const m = a.length, n = b.length, D = [], from = [];
+    for (let i = 0; i < m; i++) {
+      D.push(new Array(n)); from.push(new Array(n));
+      for (let j = 0; j < n; j++) {
+        const c = Math.abs(a[i] - b[j]);
+        if (!i && !j) { D[i][j] = c; from[i][j] = 0; continue; }
+        const diag = i && j ? D[i - 1][j - 1] : Infinity, up = i ? D[i - 1][j] : Infinity, left = j ? D[i][j - 1] : Infinity;
+        const best = Math.min(diag, up, left);
+        D[i][j] = c + best; from[i][j] = best === diag ? 0 : best === up ? 1 : 2;
+      }
+    }
+    const pairs = [];
+    let i = m - 1, j = n - 1;
+    while (i >= 0 && j >= 0) { pairs.unshift([i, j]); const f = from[i][j]; if (!i && !j) break; if (f === 0) { i--; j--; } else if (f === 1) i--; else j--; }
+    return { pairs, semitones: D[m - 1][n - 1] };
+  }
+  // The cost of moving from voicing a to voicing b: movement, a top-line leap past a major 3rd, a credit for each
+  // note held (in the same voice, or on the same string), and on a fretboard the hand's shift, rising steeply.
+  // dir says which side this chord is on, for the wording. quick skips the explanation lines.
+  function transition(a, b, W, dir, quick) {
+    const pv = pairVoices(a.mains, b.mains);
+    let cost = pv.semitones * W.vlMove;
+    const lines = quick ? null : [];
+    const where = dir === 'next' ? 'to the next chord' : 'from the previous chord';
+    if (lines && pv.semitones) lines.push({ rule: 'Voice movement', key: 'vlMove', detail: `${pv.semitones} semitones of movement ${where}`, points: r2(pv.semitones * W.vlMove) });
+    const leap = Math.abs(a.mains[a.mains.length - 1] - b.mains[b.mains.length - 1]);
+    if (leap > 4) { cost += W.vlTopLeap; if (lines) lines.push({ rule: 'Top line leap', key: 'vlTopLeap', detail: `top line leaps ${leap === 12 ? 'an octave' : (leap > 12 ? 'more than an octave' : 'a ' + INTERVAL_NAMES[leap].replace('minor', 'minor').replace('major', 'major'))} ${where}`, points: W.vlTopLeap }); }
+    let held = 0;
+    for (const [i, j] of pv.pairs) if (a.mains[i] === b.mains[j]) held++;
+    if (a.fingering && b.fingering) {
+      let same = 0;
+      for (let c = 0; c < Math.min(a.fingering.length, b.fingering.length); c++) if (a.fingering[c] >= 0 && a.fingering[c] === b.fingering[c]) same++;
+      held = Math.max(held, same);
+    }
+    if (held) { cost -= held * W.vlCommon; if (lines) lines.push({ rule: 'Held notes', key: 'vlCommon', detail: `${held} note${held === 1 ? '' : 's'} held ${where}`, points: -r2(held * W.vlCommon) }); }
+    if (a.position != null && b.position != null && a.fingering && b.fingering) {
+      const d = Math.abs((a.position || 1) - (b.position || 1));
+      if (d) {
+        // Measured along the neck as the stretch rule is: past the comfortable reach, the shift costs extra.
+        const scale = a.scale || b.scale, mm = scale ? spanMm(scale, Math.min(a.position || 1, b.position || 1), Math.max(a.position || 1, b.position || 1)) : 0;
+        const far = scale && mm > (W.comfortMm || 105) ? W.vlFar : 0, pts = W.vlShift * d + W.vlShiftSq * d * d + far;
+        cost += pts;
+        if (lines) lines.push({ rule: 'Hand shift', key: 'vlShift', detail: `the hand moves ${d} fret${d === 1 ? '' : 's'} ${where}${far ? `, ${Math.round(mm)} mm, past the comfortable reach` : ''}`, points: r2(pts) });
+      }
+    }
+    cost = Math.max(0, cost);
+    return { cost: r2(cost), lines: lines || [], pairs: pv.pairs, semitones: pv.semitones };
+  }
+  // Chooses one candidate per chord to minimise total sound penalty plus transition cost across the run, by dynamic
+  // programming. chords: [{ candidates: [{ mains|pitches, fingering?, score }], locked?: index }].
+  // Returns { choice: [index per chord], total, steps: [{ cost, lines, pairs }] between neighbours }.
+  function optimiseProgression(chords, weights, target, comfortMm) {
+    const W = Object.assign({}, DEFAULT_WEIGHTS, weights || {}, { comfortMm: comfortMm || 105 });
+    const C = chords.map((ch) => (ch.candidates || []).map((c) => Object.assign({}, c, neighbour(c, target))));
+    const n = C.length;
+    if (!n || C.some((cs) => !cs.length)) return { choice: C.map(() => -1), total: 0, steps: [] };
+    const allowed = (i, k) => chords[i].locked == null || chords[i].locked === k;
+    let cost = C[0].map((c, k) => (allowed(0, k) ? c.score : Infinity));
+    const back = [cost.map(() => -1)];
+    for (let i = 1; i < n; i++) {
+      const next = [], bk = [];
+      for (let k = 0; k < C[i].length; k++) {
+        if (!allowed(i, k)) { next.push(Infinity); bk.push(-1); continue; }
+        let best = Infinity, arg = -1;
+        for (let j = 0; j < C[i - 1].length; j++) {
+          if (cost[j] === Infinity) continue;
+          const v = cost[j] + transition(C[i - 1][j], C[i][k], W, 'prev', true).cost;
+          if (v < best - 1e-9) { best = v; arg = j; }
+        }
+        next.push(best + C[i][k].score); bk.push(arg);
+      }
+      cost = next; back.push(bk);
+    }
+    let k = 0;
+    for (let j = 1; j < cost.length; j++) if (cost[j] < cost[k] - 1e-9) k = j;
+    const choice = new Array(n);
+    for (let i = n - 1; i >= 0; i--) { choice[i] = k; k = back[i][k]; }
+    const steps = [];
+    for (let i = 1; i < n; i++) steps.push(transition(C[i - 1][choice[i - 1]], C[i][choice[i]], W, 'prev'));
+    return { choice, total: r2(cost[choice[n - 1]] === undefined ? 0 : Math.min(...cost)), steps };
+  }
+
+  // A whole progression to one target. req: { chords: [{ source, locked?: { fingering } | { pitches } }], target,
+  // capos, weights, options }. Each chord's twelve best translations are the candidates (a locked chord keeps only
+  // Bill's choice); the run is chosen by optimiseProgression. Returns each chord's candidates, the chosen index
+  // and result, and the transitions between neighbours (with the voice pairing kept for the analysis round).
+  function progression(req) {
+    const W = Object.assign({}, DEFAULT_WEIGHTS, req.weights || {});
+    const options = Object.assign({}, req.options || {}, { ranked: 40 });
+    const per = req.chords.map((ch) => {
+      const base = { source: ch.source, target: req.target, capos: req.capos, weights: req.weights, options };
+      const out = translate(base);
+      if (ch.locked) {
+        const r = evaluate(Object.assign({}, base, { analysis: out.analysis, fingering: ch.locked.fingering, pitches: ch.locked.pitches }));
+        return { analysis: out.analysis, candidates: [r], locked: 0 };
+      }
+      // About twelve candidates, best first, with at most three from any one hand position, so the run can stay
+      // in one place or move by small steps.
+      const seen = new Set(), cands = [];
+      for (const r of [...out.results, ...out.ranked]) {
+        if (cands.length >= 12 || seen.has(r.multiKey)) continue;
+        if (r.position != null && cands.filter((c) => c.position != null && Math.abs(c.position - r.position) <= 2).length >= 3) continue;
+        seen.add(r.multiKey); cands.push(r);
+      }
+      return { analysis: out.analysis, candidates: cands, locked: null };
+    });
+    if (per.some((p) => !p.candidates.length)) return { chords: per.map((p) => ({ name: p.analysis.name, candidates: p.candidates, choice: -1, chosen: null })), steps: [], total: 0 };
+    const opt = optimiseProgression(per.map((p) => ({ candidates: p.candidates, locked: p.locked })), W, req.target, (req.options || {}).comfortMm);
+    return {
+      chords: per.map((p, i) => ({ name: p.analysis.name, candidates: p.candidates, choice: opt.choice[i], chosen: p.candidates[opt.choice[i]] })),
+      steps: opt.steps, total: opt.total,
+    };
+  }
+
+  /* ───────────── 9c. Harmonic analysis (reserved for the analysis round) ───────────── */
+  // analyzeProgression(chords, key) will return, for each chord, its Roman numeral in the key (for example V7/V),
+  // its function (tonic, predominant, dominant…) and which voices move against which are held, using the pairing
+  // transition() already keeps. Not built in this round: it returns an empty analysis of the right shape.
+  function analyzeProgression(chords, key) {
+    return { pending: true, key: key || null, chords: (chords || []).map(() => ({ key: null, roman: null, function: null, note: '' })) };
+  }
+
   /* ───────────── 10a. Other ways to play the same sound ───────────── */
   // Source and target are the same instrument with the same capos. The fingering Bill entered is left out.
   // Fingerings with exactly the same pitches come first, labelled "Same notes"; after them, the best-ranked
@@ -1528,7 +1713,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives, transition, pairVoices, optimiseProgression, progression, analyzeProgression,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     spellChord, ENHARMONIC, predictKey, traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,
@@ -1696,6 +1881,62 @@ const ChordName = (function () {
   return { parse, voicing, normalise };
 })();
 </script>
+<script id="progcheck-src">
+/* js/progcheck.js */
+/* PROGCHECK — the Lab's progression and key checks, shared by the command-line tests and the engine worker.
+   Pure: takes the engine and the cases, returns results. */
+const ProgCheck = (function () {
+  'use strict';
+  // Properties, not exact answers: the top line moves by step where some choice allows it, a note is held where
+  // some choice could hold one, and no hand shift is longer than the comfortable reach.
+  function run(E, data, find, comfortMm) {
+    const P = (s) => E.parseNotes(s.replace(/♭/g, 'b'));
+    const out = { progressions: [], keys: [] };
+    for (const tc of data.progressions) {
+      const target = find(tc.target), chords = tc.chords.map((c) => ({ source: { kind: 'piano', pitches: P(c) } }));
+      const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
+      const r = E.progression({ chords, target, capos: [], options: { comfortMm } });
+      const ms = (typeof performance !== 'undefined' ? performance : Date).now() - t0;
+      const problems = [];
+      for (let i = 1; i < r.chords.length; i++) {
+        const a = r.chords[i - 1], b = r.chords[i], A = a.chosen, B = b.chosen;
+        if (!A || !B) { problems.push(`${a.name}→${b.name}: no playable voicing`); continue; }
+        const top = (x) => x.mains[x.mains.length - 1];
+        const stepPossible = a.candidates.some((x) => b.candidates.some((y) => Math.abs(top(x) - top(y)) <= 2));
+        if (stepPossible && Math.abs(top(A) - top(B)) > 2) problems.push(`${a.name}→${b.name}: the top line leaps ${Math.abs(top(A) - top(B))} semitones though a step was possible`);
+        const holdPossible = a.candidates.some((x) => b.candidates.some((y) => x.mains.some((p) => y.mains.includes(p))));
+        if (holdPossible && !r.steps[i - 1].lines.some((l) => l.key === 'vlCommon')) problems.push(`${a.name}→${b.name}: a note could be held but none is`);
+        if (A.position && B.position && target.scaleLengthMm) {
+          const mm = E.spanMm(target.scaleLengthMm, Math.min(A.position, B.position), Math.max(A.position, B.position));
+          if (mm > (comfortMm || 105)) problems.push(`${a.name}→${b.name}: the hand moves ${Math.round(mm)} mm`);
+        }
+      }
+      out.progressions.push({ id: tc.id, name: tc.name, ms, problems, run: r.chords.map((c) => (c.chosen ? `${c.name} ${c.chosen.text}` : `${c.name} –`)) });
+    }
+    for (const k of data.keys) {
+      const g = E.predictKey(k.chords.map(P));
+      out.keys.push({ want: k.key, got: g ? g.key.name : null, confidence: g ? g.confidence : 0, ok: !!g && g.key.name === k.key, chords: k.chords.length });
+    }
+    return out;
+  }
+  return { run };
+})();
+</script>
+<script>
+/* js/musicxml.js */
+/* MUSICXML — reserved for the analysis round. Score import will turn a MusicXML passage into the progression
+   format (docs/progression-format.md): a chord per beat with its sounding pitches, bar and beat, and each
+   instrument's line in concert pitch. The entry point is defined so the rest of the app can be built against it;
+   the parser is not built, and its test is pending. It must stay pure (no DOMParser: Web Workers and Swift have none). */
+const ScoreImport = {
+  FORMAT: 'notations-progression',
+  VERSION: 1,
+  importMusicXML(text) {
+    void text;
+    throw new Error('Score import is not built yet.');
+  },
+};
+</script>
 <script>
 /* js/engine-client.js */
 /* ENGINE CLIENT — asks the worker. If no worker can start (some sandboxes block them), the same calls run on the
@@ -1705,7 +1946,7 @@ const Eng = {
   start() {
     try {
       if (BUILD === 'artifact') {
-        const src = document.getElementById('engine-src').textContent + '\n' + document.getElementById('worker-src').textContent;
+        const src = ['engine-src', 'progcheck-src', 'worker-src'].map((id) => document.getElementById(id).textContent).join('\n');
         this.worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
       } else this.worker = new Worker('js/engine-worker.js');
       this.worker.onmessage = (e) => this.answer(e.data);
@@ -1737,6 +1978,8 @@ const Eng = {
         else if (op === 'translateTop') { const r = E.translate(arg).results[0]; resolve(r ? { score: r.score, bassTier: r.bassTier } : null); }
         else if (op === 'sameNotes') resolve(E.sameNotes(arg));
         else if (op === 'alternatives') resolve(E.alternatives(arg));
+        else if (op === 'progression') resolve(E.progression(arg));
+        else if (op === 'labProgressions') { const byId = new Map(arg.instruments.map((i) => [i.id, i])); resolve(ProgCheck.run(E, arg.data, (id) => byId.get(id), arg.comfortMm)); }
         else if (op === 'lab') {
           const byId = new Map(arg.instruments.map((i) => [i.id, i])), find = (id) => (id === 'piano' ? E.PIANO : byId.get(id));
           resolve({ rows: arg.tests.map((tc) => E.runTest(tc, find, arg.weights || {}, {})), times: null });
@@ -1766,9 +2009,9 @@ function starterTests() {
 function defaultState() {
   return {
     v: 1, updatedAt: 0,
-    settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord' },
-    weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [],
-    work: { piano: [60, 64, 67, 71], staff: [60, 64, 67, 71], staffSpell: {}, staffLast: null, fing: {}, srcCapos: [], tgtCapos: [] },
+    settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord', tempo: 60, progHear: 'src', analysisLabels: 'off' },
+    weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [], progressions: [],
+    work: { piano: [60, 64, 67, 71], staff: [60, 64, 67, 71], staffSpell: {}, staffLast: null, prog: { chords: [], name: '' }, fing: {}, srcCapos: [], tgtCapos: [] },
     meta: { lastBackupAt: 0, picksAtBackup: 0 },
   };
 }
@@ -1839,7 +2082,7 @@ function backupReminder() {
 function markBackedUp() { S.meta.lastBackupAt = Date.now(); S.meta.picksAtBackup = S.picks.length; save(); }
 
 /* The artifact build also keeps a copy in the signed-in viewer's Claude account store. */
-const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups', 'meta'], library: ['favourites', 'translations', 'tests'], picks: ['picks'] };
+const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups', 'meta'], library: ['favourites', 'translations', 'tests', 'progressions'], picks: ['picks'] };
 const remote = { col: null, status: 'device', pushed: {}, busy: false, dirty: false, t: 0 };
 const partJson = (name) => { const o = {}; for (const k of PARTS[name]) o[k] = S[k]; return JSON.stringify(o); };
 function schedulePush() { if (!remote.col) return; clearTimeout(remote.t); remote.t = setTimeout(push, 2000); }
@@ -1882,6 +2125,12 @@ async function initRemote() {
 async function loadLabCases() {
   if (window.NOTATIONS_LAB_CASES) { LAB_CASES = window.NOTATIONS_LAB_CASES; return; }
   try { const r = await fetch('tests/lab-cases.json'); LAB_CASES = (await r.json()).cases; } catch (e) { LAB_CASES = []; }
+}
+let PROG_CASES = null;
+async function loadProgCases() {
+  if (window.NOTATIONS_PROG_CASES) return (PROG_CASES = window.NOTATIONS_PROG_CASES);
+  try { const r = await fetch('tests/progressions.json'); PROG_CASES = await r.json(); } catch (e) { PROG_CASES = { progressions: [], keys: [] }; }
+  return PROG_CASES;
 }
 </script>
 <script>
@@ -2038,10 +2287,14 @@ function recompute(delay, flash) {
   ses.gen++;
   clearTimeout(ses.trT); clearTimeout(ses.hintT);
   Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, editing: null });
+  if (ses.chipOpen != null && !ses.A.empty) chipSaveBack();
+  if (ses.progTgt !== S.settings.tgt) { ses.progTgt = S.settings.tgt; if (typeof scheduleProgression === 'function') scheduleProgression(); }
   if (ses.A.empty) { ses.out = null; ses.pending = false; return; }
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) || isStaff(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  // While a progression chip is open, its cards are ranked in context of the neighbouring chords.
+  Object.assign(ses.req, chipNeighbours());
   // Same instrument, same capos: show other ways to play this sound rather than the chord Bill already has.
   if (src.kind === 'strings' && S.settings.src === S.settings.tgt && JSON.stringify(S.work.srcCapos) === JSON.stringify(S.work.tgtCapos)) ses.req.alternatives = true;
   // Notation can show any pitches exactly, so a staff target is not translated: it notates the source.
@@ -2057,6 +2310,14 @@ async function translateNow(gen, req) {
   try { out = await Eng.call(op, req); } catch (e) { out = E[op](req); }
   if (gen !== ses.gen) return;
   ses.out = out; ses.pending = false; ses.card = 0;
+  // Opening a progression chip shows its chosen voicing; if the in-context ranking left it out, it is added first.
+  if (ses.wantCard) {
+    const want = ses.wantCard, key = want.fingering ? want.fingering.join(',') : want.pitches.slice().sort((a, b) => a - b).join(',');
+    const k = out.results.findIndex((r) => (r.fingering ? r.fingering.join(',') : r.pitches.join(',')) === key);
+    if (k >= 0) ses.card = k;
+    else if (want.fingering || want.pitches) { try { const r = E.evaluate(Object.assign({}, req, { analysis: ses.A, fingering: want.fingering, pitches: want.pitches })); r.custom = true; r.label = 'In the run'; ses.custom = r; } catch (e) { /* shown without it */ } }
+    ses.wantCard = null;
+  }
   renderSource(); renderBridge(); renderTarget();
   if (ses.flashNext) { ses.flashNext = false; flashComp(); }
   scheduleCapo(gen, req);
@@ -2250,6 +2511,7 @@ function layout() {
 function press(sel, v) { document.querySelectorAll(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
 function render() {
   layout();
+  if (typeof renderTray === 'function') renderTray();
   $('#chipSrc').innerHTML = `<i>From</i>${esc(side('src').name)}`;
   $('#chipTgt').innerHTML = `<i>To</i>${esc(side('tgt').name)}`;
   press('#segMode', S.settings.mode); press('#segPlay', S.settings.play); press('#segView', ses.view);
@@ -2588,6 +2850,9 @@ function usePick(i) {
   S.translations.unshift({ id: 't' + Date.now(), t: Date.now(), chord: ses.A.name, src: packSource(), srcName: side('src').name, tgt: tgt.id, tgtName: tgt.name, capos, voicing: packVoicing(res), text: res.text });
   if (S.translations.length > 300) S.translations.length = 300;
   ses.picked = { key: res.multiKey, result: res, losers, strength };
+  // In a progression, a hand-picked voicing locks that chord and the run is re-optimised around it.
+  const chip = ses.chipOpen != null ? prog().chords[ses.chipOpen] : null;
+  if (chip && res.kind !== 'staff') { chip.translation = packVoicing(res); chip.tgt = S.settings.tgt; chip.locked = true; scheduleProgression(); renderTray(); }
   save();
   ses.reasons = detailed() && losers.length ? {} : null;
   renderTarget(); renderBridge(); renderSource();
@@ -2783,7 +3048,8 @@ function librarySheet() {
   const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Make one from the instrument list, under Custom: New instrument.</p>';
   const cap = S.capoSetups.map((s) => `<div class="row"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${s.courses} strings · ${s.capos.map((c) => 'fret ' + c.fret).join(' + ')}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') || '<p class="note">Save a capo arrangement from an instrument sheet and it appears here.</p>';
   /* LEARN — reserved. A fuller Learn section (why voicings work, ear training) belongs here. Not built in version one. */
-  return sec('Favourite voicings', fav) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
+  const progs = S.progressions.map((p) => `<div class="row tap" data-act="progload" data-id="${p.id}"><span class="grow"><span class="name">${esc(p.title)}</span><span class="sub">${p.chords.length} chord${p.chords.length === 1 ? '' : 's'} · ${esc(p.chords.map((c) => c.name).join(' – '))}</span></span><button class="iconbtn" data-act="progdel" data-id="${p.id}" aria-label="Delete">${ICON.x}</button></div>`).join('') || '<p class="note">Build a run of chords in the tray under the chord name, then save it from More.</p>';
+  return sec('Favourite voicings', fav) + sec('Progressions', progs) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
     sec('Learn', '<p class="note">Reserved for a fuller guide to why voicings sound the way they do. Not built yet.</p>');
 }
 
@@ -2865,6 +3131,10 @@ async function labRun() {
   const res = await Eng.call('lab', { tests, instruments, timing: true });
   ses.lab = tests.map((tc, i) => ({ tc, r: res.rows[i] }));
   if (res.times) ses.labTimes = res.times;
+  // Progressions and keys: properties, not exact answers, and the eight-chord timing on this device.
+  const data = await loadProgCases();
+  const pins = [...new Set(data.progressions.map((p) => p.target))].map(instr).filter(Boolean);
+  try { ses.labProg = await Eng.call('labProgressions', { data, instruments: pins, comfortMm: S.settings.comfortMm }); } catch (e) { ses.labProg = null; }
 }
 function labRefresh() { labRun().then(() => { if (stack.length && stack[stack.length - 1].fn === labSheet) drawSheet(true); }); }
 function labSheet() {
@@ -2880,6 +3150,12 @@ function labSheet() {
     return `<div class="row tap" data-act="case" data-i="${i}"><span class="mark ${ok ? '' : 'fail'}" aria-label="${ok ? 'Pass' : 'Fail'}"></span><span class="grow"><span class="name">${esc(x.tc.name)}</span><span class="sub">${esc(src ? src.name : 'missing instrument')} to ${esc(tgt ? tgt.name : 'missing instrument')} · ${x.r.missing ? 'instrument missing' : x.r.rank ? 'rank ' + x.r.rank : 'not in the top four'}</span></span><span class="tag ${x.tc.status === 'confirmed' ? 'ok' : ''}">${x.tc.status === 'confirmed' ? 'Confirmed' : 'Provisional'}</span></div>`;
   }).join(''));
   const T = ses.labTimes, ms = (x) => (x < 10 ? x.toFixed(1) : Math.round(x)) + ' ms';
+  const LP = ses.labProg;
+  if (LP) {
+    h += sec('Progressions', LP.progressions.map((p) => `<div class="row"><span class="mark ${p.problems.length ? 'fail' : ''}" aria-label="${p.problems.length ? 'Fail' : 'Pass'}"></span><span class="grow"><span class="name">${esc(p.name)}</span><span class="sub">${esc(p.run.join(' → '))} · ${Math.round(p.ms)} ms</span>${p.problems.map((x) => `<span class="sub warnsub">${esc(x)}</span>`).join('')}</span></div>`).join('') +
+      '<p class="note">Checked for properties, not exact answers: the top line moves by step where it can, a note is held where one could be, and no hand shift is longer than the comfortable reach. The eight-chord run should take under 300 ms.</p>');
+    h += sec('Key prediction', LP.keys.map((k) => `<div class="row"><span class="mark ${k.ok ? '' : 'fail'}"></span><span class="grow"><span class="name">${esc(k.got || 'none')}</span><span class="sub">Expected ${esc(k.want)} · ${k.chords} chord${k.chords === 1 ? '' : 's'} · confidence ${Math.round(k.confidence * 100)}%</span></span></div>`).join(''));
+  }
   h += sec('Speed on this device', T ? `<table class="bd"><tr><th>Step</th><th class="n">Median</th><th class="n">Slowest</th></tr>
     <tr><td>Translation</td><td class="n">${ms(T.translate.median)}</td><td class="n">${ms(T.translate.slowest)}</td></tr>
     <tr><td>Capo suggestion</td><td class="n">${ms(T.capo.median)}</td><td class="n">${ms(T.capo.slowest)}</td></tr></table>
@@ -3391,6 +3667,272 @@ function staffResult(src) {
 }
 </script>
 <script>
+/* js/progressions.js */
+/* PROGRESSIONS — a run of chords Bill builds, plays and translates as a whole. The tray sits under the bridge band.
+   With two or more chords, the translation is chosen for the whole run (Engine.progression) to keep the sound close
+   and the voices moving smoothly; a chord Bill picks by hand is locked and the run is optimised around it. */
+const prog = () => S.work.prog || (S.work.prog = { chords: [], name: '' });
+// For key prediction: each chord's sounding pitches.
+function progressionPitches() { return prog().chords.map((c) => c.pitches).filter((p) => p && p.length); }
+const instOf = (src) => (src.kind === 'staff' ? STAFF : src.kind === 'piano' ? E.PIANO : instr(src.instrument));
+
+function chordRecord() {
+  const A = ses.A;
+  if (!A || A.empty) return null;
+  const card = ses.picked ? ses.picked.result : currentCard();
+  return {
+    id: 'k' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+    src: packSource(), name: A.name, pitches: A.notes.filter((n) => n.weight >= 1).map((n) => n.pitch),
+    translation: card && card.kind !== 'staff' && !ses.pending ? packVoicing(card) : null, tgt: S.settings.tgt, locked: false,
+    bar: null, beat: null, lines: null, analysis: null,
+  };
+}
+const voicingOfChip = (c) => (c && c.translation && c.tgt === S.settings.tgt ? Object.assign({ capos: S.work.tgtCapos }, c.translation) : null);
+// The neighbours' chosen voicings, so the open chord's cards are ranked in context.
+function chipNeighbours() {
+  const i = ses.chipOpen, cs = prog().chords;
+  if (i == null || !cs[i]) return {};
+  return { previousVoicing: voicingOfChip(cs[i - 1]), nextVoicing: voicingOfChip(cs[i + 1]) };
+}
+// Called by recompute: while a chip is open, edits to the source save back to it.
+function chipSaveBack() {
+  const i = ses.chipOpen, c = prog().chords[i];
+  if (c == null || ses.loadingChip) { ses.loadingChip = false; return; }
+  const src = packSource();
+  if (JSON.stringify(src) === JSON.stringify(c.src)) return;
+  Object.assign(c, { src, name: ses.A.name, pitches: ses.A.notes.filter((n) => n.weight >= 1).map((n) => n.pitch), locked: false, translation: null });
+  scheduleProgression();
+}
+// Load a source into the source strip without touching the target.
+function applySource(src) {
+  if (src.kind === 'staff') { S.settings.src = 'staff'; S.work.staff = src.pitches.slice(); S.work.staffSpell = {}; }
+  else if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = src.pitches.slice(); }
+  else { if (!instr(src.instrument)) return false; S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
+  return true;
+}
+function openChip(i) {
+  const c = prog().chords[i];
+  if (!c || !applySource(c.src)) return toast('That chord’s instrument is no longer saved.');
+  ses.chipOpen = i; ses.loadingChip = true; ses.wantCard = voicingOfChip(c);
+  ses.fit.src = true; save(true); recompute(0, false); render();
+}
+
+/* The run is re-optimised a moment after anything in it changes. */
+let progT = 0, progGen = 0;
+function scheduleProgression() { clearTimeout(progT); progT = setTimeout(optimiseRun, 300); }
+async function optimiseRun() {
+  const cs = prog().chords, tgt = side('tgt');
+  if (cs.length < 2 || isStaff(tgt)) return;
+  const gen = ++progGen;
+  const ids = new Set(cs.filter((c) => c.src.kind === 'strings').map((c) => c.src.instrument));
+  const chords = cs.map((c) => ({
+    source: c.src.kind === 'strings' ? { kind: 'strings', instrument: instr(c.src.instrument), fingering: c.src.fingering, capos: c.src.capos || [] } : { kind: 'piano', pitches: c.src.pitches },
+    locked: c.locked && c.tgt === tgt.id && c.translation ? c.translation : null,
+  }));
+  if (chords.some((c) => c.source.kind === 'strings' && !c.source.instrument)) return;
+  void ids;
+  let r;
+  try { r = await Eng.call('progression', { chords, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: E.effectiveWeights(S.weights, S.taste), options: opts() }); } catch (e) { return; }
+  if (gen !== progGen) return;
+  r.chords.forEach((rc, i) => {
+    const c = cs[i];
+    if (!c || !rc.chosen) return;
+    if (!(c.locked && c.tgt === tgt.id)) { c.translation = packVoicing(rc.chosen); c.tgt = tgt.id; c.locked = false; }
+    // How each voice moves to the next chord, kept for the analysis round.
+    c.voiceMoves = r.steps[i] ? r.steps[i].pairs : null;
+    c.stepLines = r.steps[i] ? r.steps[i].lines.map((l) => `${l.points > 0 ? '+' : ''}${l.points}: ${l.detail}`) : null;
+  });
+  save(true); renderTray();
+  if (ses.chipOpen != null) { ses.loadingChip = true; ses.wantCard = voicingOfChip(cs[ses.chipOpen]); recompute(0, false); renderTarget(); renderBridge(); }
+}
+
+/* ───────── tray ───────── */
+function renderTray() {
+  const el = $('#tray');
+  if (!el || !S) return;
+  const cs = prog().chords, n = cs.length, open = ses.chipOpen;
+  if (!n) { el.innerHTML = `<button class="pill trayadd" data-act="progadd"><span>+ Add to progression</span></button>`; return; }
+  const chip = (c, i) => `<button class="tchip ${i === open ? 'open' : ''} ${i === ses.playIdx ? 'playing' : ''} ${c.locked && c.tgt === S.settings.tgt ? 'locked' : ''}" data-act="chip" data-i="${i}" aria-pressed="${i === open}">${esc(c.name)}</button>`;
+  const key = E.predictKey(progressionPitches());
+  const keyBtn = key ? `<button class="txtbtn keybtn" data-act="progkey" aria-label="Key: ${esc(key.key.name)}">${esc(key.key.name)}${key.confidence < 0.5 ? '?' : ''}</button>` : '';
+  const ctl = `<button class="iconbtn" data-act="progplay" aria-label="${ses.playing ? 'Stop' : 'Play the progression'}">${ses.playing ? '<svg class="ico" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>' : '<svg class="ico" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></svg>'}</button>
+    <div class="seg" role="group" aria-label="What you hear"><button data-act="proghear" data-v="src" aria-pressed="${S.settings.progHear !== 'tgt'}"><span>Original</span></button><button data-act="proghear" data-v="tgt" aria-pressed="${S.settings.progHear === 'tgt'}"><span>Translation</span></button></div>
+    <div class="step tempo"><button data-act="progtempo" data-d="-1" aria-label="Slower">−</button><output>${S.settings.tempo}</output><button data-act="progtempo" data-d="1" aria-label="Faster">+</button></div>
+    ${keyBtn}<button class="txtbtn" data-act="progmore" aria-label="Progression: save, clear, list">More</button>`;
+  if (!ses.roomy) {
+    const i = open != null ? open : Math.max(0, n - 1);
+    el.innerHTML = `<div class="tray-one"><button class="iconbtn" data-act="progstep" data-d="-1" aria-label="Previous chord">${ICON.left}</button>${chip(cs[i], i).replace('</button>', ` <small>${i + 1} of ${n}</small></button>`)}<button class="iconbtn" data-act="progstep" data-d="1" aria-label="Next chord">${ICON.right}</button><button class="tchip add" data-act="progadd" aria-label="Add the current chord">+</button></div><div class="tray-ctl">${ctl}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="tray-chips" id="trayChips">${cs.map(chip).join('')}<button class="tchip add" data-act="progadd" aria-label="Add the current chord">+</button></div><div class="tray-ctl">${ctl}</div>`;
+}
+
+/* Long-press a chip for duplicate, move, unlock and delete; drag it to reorder. */
+let chipHold = 0, chipDrag = null;
+document.addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.tchip[data-i]');
+  if (!el) return;
+  const i = +el.dataset.i;
+  ses.chipLong = false;
+  chipDrag = { el, i, x0: e.clientX, moved: false };
+  chipHold = setTimeout(() => { if (!chipDrag || !chipDrag.moved) { ses.chipLong = true; chipActions(i); } }, 500);
+});
+document.addEventListener('pointermove', (e) => {
+  if (!chipDrag) return;
+  const dx = e.clientX - chipDrag.x0;
+  if (!chipDrag.moved && Math.abs(dx) > 10) { chipDrag.moved = true; clearTimeout(chipHold); chipDrag.el.classList.add('dragging'); }
+  if (chipDrag.moved) chipDrag.el.style.transform = `translateX(${dx}px)`;
+});
+document.addEventListener('pointerup', (e) => {
+  clearTimeout(chipHold);
+  if (!chipDrag) return;
+  const d = chipDrag; chipDrag = null;
+  if (!d.moved) return;
+  ses.chipDragged = true;
+  const chips = [...document.querySelectorAll('#trayChips .tchip[data-i]')];
+  let to = chips.findIndex((c) => { const r = c.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
+  if (to < 0) to = chips.length;
+  if (to > d.i) to--;
+  moveChip(d.i, to);
+});
+function moveChip(from, to) {
+  const cs = prog().chords;
+  to = clamp(to, 0, cs.length - 1);
+  if (from === to) return renderTray();
+  const [c] = cs.splice(from, 1); cs.splice(to, 0, c);
+  if (ses.chipOpen === from) ses.chipOpen = to;
+  else if (ses.chipOpen != null && from < ses.chipOpen && to >= ses.chipOpen) ses.chipOpen--;
+  else if (ses.chipOpen != null && from > ses.chipOpen && to <= ses.chipOpen) ses.chipOpen++;
+  save(); renderTray(); scheduleProgression();
+}
+function chipActions(i) {
+  const c = prog().chords[i];
+  if (!c) return;
+  openSheet(c.name, () => {
+    const locked = c.locked && c.tgt === S.settings.tgt;
+    return `${c.stepLines && c.stepLines.length ? sec('Move to the next chord', c.stepLines.map((l) => `<p class="note">${esc(l)}</p>`).join('')) : ''}
+      <div class="row tap" data-act="chipdup" data-i="${i}"><span class="grow">Duplicate</span></div>
+      <div class="row tap" data-act="chipmove" data-i="${i}" data-d="-1"><span class="grow">Move left</span></div>
+      <div class="row tap" data-act="chipmove" data-i="${i}" data-d="1"><span class="grow">Move right</span></div>
+      ${locked ? `<div class="row tap" data-act="chipunlock" data-i="${i}"><span class="grow">Unlock<span class="sub">Let the run choose this chord's voicing again.</span></span></div>` : ''}
+      <div class="row tap" data-act="chipdel" data-i="${i}"><span class="grow">Delete</span></div>`;
+  }, true);
+}
+
+/* Playing: steps through the chips at the tempo, two beats each, Block or Arpeggio as set. */
+function stopProgression() { (ses.playTimers || []).forEach(clearTimeout); ses.playTimers = []; ses.playing = false; ses.playIdx = null; renderTray(); }
+async function playChip(i) {
+  const c = prog().chords[i];
+  if (!c) return;
+  ses.playIdx = i; openChip(i); renderTray();
+  if (S.settings.progHear === 'tgt') {
+    const v = voicingOfChip(c), tgt = side('tgt');
+    if (!v) return;
+    const sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, v), isPiano(tgt) || isStaff(tgt));
+    setTimeout(() => { if (sched) lightUp(document.querySelectorAll('#cards .card')[ses.card], sched); }, 150);
+  } else {
+    const inst = instOf(c.src);
+    const sched = await Snd.play(eventsOf(inst, c.src.capos || [], c.src.kind === 'strings' ? { fingering: c.src.fingering } : { pitches: c.src.pitches }), c.src.kind !== 'strings');
+    if (sched) lightUp($('#srcScroll'), sched);
+  }
+}
+
+Object.assign(ACT, {
+  progadd() {
+    const r = chordRecord();
+    if (!r) return toast('Enter a chord first.');
+    const cs = prog().chords;
+    cs.push(r); ses.chipOpen = null;
+    save(); renderTray(); scheduleProgression();
+    requestAnimationFrame(() => { const t = $('#trayChips'); if (t) t.scrollLeft = t.scrollWidth; });
+  },
+  chip(el) {
+    if (ses.chipLong) { ses.chipLong = false; return; }
+    if (ses.chipDragged) { ses.chipDragged = false; return; }
+    const i = +el.dataset.i;
+    if (ses.chipOpen === i) { ses.chipOpen = null; renderTray(); return; }
+    openChip(i); renderTray();
+  },
+  progstep(el) {
+    const n = prog().chords.length;
+    if (!n) return;
+    const i = clamp((ses.chipOpen != null ? ses.chipOpen : n - 1) + +el.dataset.d, 0, n - 1);
+    openChip(i); renderTray();
+  },
+  progplay() {
+    if (ses.playing) return stopProgression();
+    const cs = prog().chords;
+    if (!cs.length) return;
+    Snd.unlock();
+    const dur = (2 * 60 / S.settings.tempo) * 1000;
+    ses.playing = true; ses.playTimers = cs.map((_, i) => setTimeout(() => playChip(i), i * dur));
+    ses.playTimers.push(setTimeout(stopProgression, cs.length * dur));
+    renderTray();
+  },
+  proghear(el) { S.settings.progHear = el.dataset.v; save(); renderTray(); },
+  progtempo(el) { S.settings.tempo = clamp(S.settings.tempo + 5 * +el.dataset.d, 40, 160); save(); renderTray(); },
+  // The predicted key with its two alternatives, one tap from using any of them on the staff.
+  progkey() {
+    const g = E.predictKey(progressionPitches());
+    if (!g) return;
+    openSheet('Key', () => {
+      const row = (name, sub) => `<div class="row tap" data-act="usekey" data-k="${esc(name)}"><span class="grow"><span class="name">${esc(name)}</span><span class="sub">${sub}</span></span></div>`;
+      return `<p class="note">Predicted from ${progressionPitches().length} chord${progressionPitches().length === 1 ? '' : 's'}, weighing each note, the bass notes, and the last chord most. ${g.confidence < 0.5 ? 'Not a confident guess.' : ''}</p>` +
+        row(g.key.name, `Most likely · confidence ${Math.round(g.confidence * 100)}%`) + g.alternatives.map((k) => row(k.name, 'Next most likely')).join('') +
+        '<p class="note">Tap a key to use it for the staff’s key signature.</p>';
+    }, true);
+  },
+  usekey(el) {
+    const st = staffSettings(); st.spelling = 'key'; st.key = el.dataset.k;
+    save(); closeSheet(); render(); toast(`The staff now uses ${el.dataset.k}.`);
+  },
+  progmore() {
+    openSheet('Progression', () => {
+      const cs = prog().chords;
+      return sec('Chords', cs.map((c, i) => `<div class="row tap" data-act="chiprow" data-i="${i}"><span class="grow"><span class="name">${i + 1}. ${esc(c.name)}</span><span class="sub">${c.translation ? esc(c.translation.fingering ? c.translation.fingering.map((f) => (f < 0 ? 'x' : f)).join('-') : c.translation.pitches.map((p) => E.pitchName(p)).join(' ')) : 'not yet translated'}${c.locked && c.tgt === S.settings.tgt ? ' · chosen by you' : ''}</span></span>${pill('More', 'chipmore', `data-i="${i}"`)}</div>`).join('')) +
+        sec('Save', `<div class="row"><input class="grow" id="progName" placeholder="Name this progression" maxlength="48" value="${esc(prog().name || '')}" aria-label="Progression name">${pill('Save', 'progsave', '', 'primary')}</div><p class="note">Saved progressions are in the Library, and in backups.</p>`) +
+        `<div class="row"><span class="grow"></span>${pill(ses.confirmClear ? 'Tap again to clear' : 'Clear the progression', 'progclear', '', ses.confirmClear ? 'on' : '')}</div>`;
+    }, true);
+  },
+  chiprow(el, e) { if (e.target.closest('[data-act="chipmore"]')) return; closeSheet(); openChip(+el.dataset.i); renderTray(); },
+  chipmore(el, e) { e.stopPropagation(); chipActions(+el.dataset.i); },
+  chipdup(el) { const cs = prog().chords, i = +el.dataset.i, c = clone(cs[i]); c.id += 'd'; cs.splice(i + 1, 0, c); closeSheet(); save(); renderTray(); scheduleProgression(); },
+  chipmove(el) { const i = +el.dataset.i; closeSheet(); moveChip(i, i + +el.dataset.d); },
+  chipunlock(el) { const c = prog().chords[+el.dataset.i]; c.locked = false; closeSheet(); save(); renderTray(); scheduleProgression(); },
+  chipdel(el) {
+    const cs = prog().chords, i = +el.dataset.i;
+    cs.splice(i, 1);
+    if (ses.chipOpen === i) ses.chipOpen = null; else if (ses.chipOpen > i) ses.chipOpen--;
+    closeSheet(); save(); renderTray(); scheduleProgression();
+  },
+  progsave() {
+    const name = ($('#progName').value || '').trim();
+    if (!name) return toast('Give the progression a name first.');
+    const p = prog(); p.name = name;
+    const rec = { id: 'p' + Date.now(), format: 'notations-progression', version: 1, title: name, source: null, savedAt: Date.now(), target: S.settings.tgt, tgtCapos: clone(S.work.tgtCapos), chords: clone(p.chords) };
+    const at = S.progressions.findIndex((x) => x.title === name);
+    if (at >= 0) S.progressions[at] = rec; else S.progressions.unshift(rec);
+    save(); closeSheet(); toast(at >= 0 ? 'Progression updated in the Library.' : 'Progression saved to the Library.');
+  },
+  progclear() {
+    if (!ses.confirmClear) { ses.confirmClear = true; return drawSheet(true); }
+    ses.confirmClear = false; S.work.prog = { chords: [], name: '' }; ses.chipOpen = null;
+    save(); closeSheet(); renderTray();
+  },
+  progload(el, e) {
+    if (e.target.closest('[data-act="progdel"]')) return;
+    const p = S.progressions.find((x) => x.id === el.dataset.id);
+    if (!p) return;
+    S.work.prog = { chords: clone(p.chords), name: p.title };
+    if (p.target && instr(p.target)) { S.settings.tgt = p.target; S.work.tgtCapos = clone(p.tgtCapos || []); }
+    ses.chipOpen = null; save(); closeSheet();
+    if (S.work.prog.chords.length) openChip(0); else render();
+    renderTray(); scheduleProgression(); toast(`Loaded “${p.title}”.`);
+  },
+  progdel(el, e) { e.stopPropagation(); S.progressions = S.progressions.filter((x) => x.id !== el.dataset.id); save(); drawSheet(true); },
+});
+</script>
+<script>
 /* js/space.js */
 /* SPACE — fitting the screen and moving around: layout after rotation, pinch zoom, the divider between the
    strips, telling taps from drags, moving the view, moving the chord, and other shapes of the same notes. */
@@ -3409,7 +3951,8 @@ function settleThenLayout() {
   };
   requestAnimationFrame(step);
 }
-if (window.ResizeObserver) new ResizeObserver(() => { if (S) settleThenLayout(); }).observe(document.getElementById('app'));
+// The strips are watched too: the tray or a hint line can change the bridge's height without the window changing.
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => { if (S) settleThenLayout(); }); ro.observe(document.getElementById('app')); document.querySelectorAll('.strip-body').forEach((el) => ro.observe(el)); }
 else window.addEventListener('resize', () => { if (S) settleThenLayout(); });
 if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if (S) settleThenLayout(); });
 

@@ -456,6 +456,8 @@ const Engine = (function () {
     topOctave: 8, topDifferent: 40, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
     registerPerSemitone: 1, registerCap: 30, lowMud: 6, doubledThird: 6, doubledColour: 8,
     rootMissing: 4, fifthMissing: 1, highPosition: 2, definingLost: 60, tieWindow: 3, easeWeight: 2,
+    // Voice leading between neighbouring chords in a progression.
+    vlMove: 0.5, vlTopLeap: 6, vlCommon: 2, vlShift: 0.5, vlShiftSq: 0.15, vlFar: 14,
   };
   const WEIGHT_INFO = {
     topOctave: ['Top note moved an octave', 'per octave'],
@@ -472,11 +474,17 @@ const Engine = (function () {
     rootMissing: ['Root missing', ''],
     fifthMissing: ['5th missing', ''],
     highPosition: ['High position', 'per fret above 12'],
+    vlMove: ['Voice movement to the next chord', 'per semitone'],
+    vlTopLeap: ['Top line leaps more than a major 3rd', ''],
+    vlCommon: ['Credit for each note held', ''],
+    vlShift: ['Hand shift', 'per fret'],
+    vlShiftSq: ['Hand shift, extra for big jumps', 'per fret squared'],
+    vlFar: ['Hand shift past the comfortable reach', ''],
     definingLost: ['Defining tone lost (rule relaxed)', 'each'],
     tieWindow: ['Tie window where difficulty decides', 'points'],
     easeWeight: ['Prefer easier: points per difficulty step', ''],
   };
-  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing', 'highPosition'];
+  const LEARNABLE = ['topOctave', 'topDifferent', 'octaveOverTop', 'colourMissing', 'rubLost', 'bassMissing', 'registerPerSemitone', 'lowMud', 'doubledThird', 'doubledColour', 'rootMissing', 'fifthMissing', 'highPosition', 'vlMove', 'vlTopLeap', 'vlCommon', 'vlShift'];
   const DEFAULT_OPTIONS = { comfortMm: 105, impossibleMm: 135, preferEasier: false, maxResults: 4, ranked: 0 };
 
   // Source and result pitches paired in sorted order: lowest with lowest,
@@ -757,6 +765,14 @@ const Engine = (function () {
 
   function finishStrings(P, A, W, opt, c) {
     const V = c.V, sc = scoreVoicing(A, V, W, true), d = difficultyOf(P, c.fr, opt, true);
+    if (opt.prev || opt.next) {
+      const me = { mains: V.mains, fingering: c.fr, position: V.pos };
+      for (const [other, dir] of [[opt.prev, 'prev'], [opt.next, 'next']]) {
+        if (!other) continue;
+        const t = transition(dir === 'prev' ? other : me, dir === 'prev' ? me : other, W, dir);
+        sc.score = r2(sc.score + t.cost); for (const l of t.lines) sc.breakdown.push(l);
+      }
+    }
     const comp = compromiseOf(A, V, sc.breakdown, c.tier);
     const flags = [];
     if (c.tier === 3) flags.push({ code: 'needsBass', text: 'This one needs a bass instrument or a second player.' });
@@ -787,10 +803,12 @@ const Engine = (function () {
     return (source.pitches || []).map((p) => ({ pitch: p, weight: 1 }));
   }
 
+  // req.previousVoicing / req.nextVoicing: the neighbouring chords' chosen voicings ({pitches, fingering?}). With
+  // neither, translation is exactly as before (the parity tests confirm it).
   function translate(req) {
-    // req.previousVoicing is accepted and ignored: the hook for voice leading later.
     const W = Object.assign({}, DEFAULT_WEIGHTS, req.weights || {});
     const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    opt.prev = neighbour(req.previousVoicing, req.target); opt.next = neighbour(req.nextVoicing, req.target);
     const A = analyze(sourceNotes(req.source));
     const flags = [];
     if (A.empty) return { analysis: A, results: [], flags, ranked: [] };
@@ -800,10 +818,18 @@ const Engine = (function () {
     for (const pc of A.definingPcs) need |= 1 << pc;
     // Score every playable fingering into flat arrays: fingerings, scores and bass tiers.
     const n = P.n, frs = [], scores = [], tiers = [], SV = scratchVoicing();
+    // With neighbouring chords given, each candidate also pays for the move from the previous voicing and to the next.
+    const prev = opt.prev, next = opt.next;
     const visit = (sel) => {
       for (let c = 0; c < n; c++) frs.push(sel[c]);
       voicingInto(P, sel, SV);
-      scores.push(scoreVoicing(A, SV, W, false).score); tiers.push(tierOf(A, SV));
+      let sc = scoreVoicing(A, SV, W, false).score;
+      if (prev || next) {
+        const me = { mains: SV.mains, fingering: sel, position: SV.pos };
+        if (prev) sc = r2(sc + transition(prev, me, W, 'prev', true).cost);
+        if (next) sc = r2(sc + transition(me, next, W, 'next', true).cost);
+      }
+      scores.push(sc); tiers.push(tierOf(A, SV));
     };
     let minSound = Math.min(3, A.pcs.length, P.n), found = 0, relaxed = false;
     for (; minSound >= 1 && !found; minSound--) {
@@ -993,6 +1019,142 @@ const Engine = (function () {
     return best;
   }
 
+  /* ───────────── 9b. Voice leading between chords ───────────── */
+  // A neighbouring voicing as the transition cost needs it: sorted main pitches, fingering, hand position.
+  function neighbour(v, target) {
+    if (!v) return null;
+    let mains = v.mains || v.pitches;
+    if (!mains && v.fingering && target && target.courses) mains = voicingOf(prepare(target, v.capos || []), v.fingering).mains;
+    if (!mains || !mains.length) return null;
+    let position = v.position;
+    if (position == null && v.fingering) { position = 0; for (const f of v.fingering) if (f > 0 && (position === 0 || f < position)) position = f; }
+    return { mains: mains.slice().sort(num), fingering: v.fingering || null, position: position == null ? null : position, scale: target && target.scaleLengthMm };
+  }
+  // Pairs the voices of two sorted chords at the least total movement, keeping their order (lowest with lowest,
+  // highest with highest); a chord with more notes splits a voice. Returns the pairing and the total semitones.
+  function pairVoices(a, b) {
+    const m = a.length, n = b.length, D = [], from = [];
+    for (let i = 0; i < m; i++) {
+      D.push(new Array(n)); from.push(new Array(n));
+      for (let j = 0; j < n; j++) {
+        const c = Math.abs(a[i] - b[j]);
+        if (!i && !j) { D[i][j] = c; from[i][j] = 0; continue; }
+        const diag = i && j ? D[i - 1][j - 1] : Infinity, up = i ? D[i - 1][j] : Infinity, left = j ? D[i][j - 1] : Infinity;
+        const best = Math.min(diag, up, left);
+        D[i][j] = c + best; from[i][j] = best === diag ? 0 : best === up ? 1 : 2;
+      }
+    }
+    const pairs = [];
+    let i = m - 1, j = n - 1;
+    while (i >= 0 && j >= 0) { pairs.unshift([i, j]); const f = from[i][j]; if (!i && !j) break; if (f === 0) { i--; j--; } else if (f === 1) i--; else j--; }
+    return { pairs, semitones: D[m - 1][n - 1] };
+  }
+  // The cost of moving from voicing a to voicing b: movement, a top-line leap past a major 3rd, a credit for each
+  // note held (in the same voice, or on the same string), and on a fretboard the hand's shift, rising steeply.
+  // dir says which side this chord is on, for the wording. quick skips the explanation lines.
+  function transition(a, b, W, dir, quick) {
+    const pv = pairVoices(a.mains, b.mains);
+    let cost = pv.semitones * W.vlMove;
+    const lines = quick ? null : [];
+    const where = dir === 'next' ? 'to the next chord' : 'from the previous chord';
+    if (lines && pv.semitones) lines.push({ rule: 'Voice movement', key: 'vlMove', detail: `${pv.semitones} semitones of movement ${where}`, points: r2(pv.semitones * W.vlMove) });
+    const leap = Math.abs(a.mains[a.mains.length - 1] - b.mains[b.mains.length - 1]);
+    if (leap > 4) { cost += W.vlTopLeap; if (lines) lines.push({ rule: 'Top line leap', key: 'vlTopLeap', detail: `top line leaps ${leap === 12 ? 'an octave' : (leap > 12 ? 'more than an octave' : 'a ' + INTERVAL_NAMES[leap].replace('minor', 'minor').replace('major', 'major'))} ${where}`, points: W.vlTopLeap }); }
+    let held = 0;
+    for (const [i, j] of pv.pairs) if (a.mains[i] === b.mains[j]) held++;
+    if (a.fingering && b.fingering) {
+      let same = 0;
+      for (let c = 0; c < Math.min(a.fingering.length, b.fingering.length); c++) if (a.fingering[c] >= 0 && a.fingering[c] === b.fingering[c]) same++;
+      held = Math.max(held, same);
+    }
+    if (held) { cost -= held * W.vlCommon; if (lines) lines.push({ rule: 'Held notes', key: 'vlCommon', detail: `${held} note${held === 1 ? '' : 's'} held ${where}`, points: -r2(held * W.vlCommon) }); }
+    if (a.position != null && b.position != null && a.fingering && b.fingering) {
+      const d = Math.abs((a.position || 1) - (b.position || 1));
+      if (d) {
+        // Measured along the neck as the stretch rule is: past the comfortable reach, the shift costs extra.
+        const scale = a.scale || b.scale, mm = scale ? spanMm(scale, Math.min(a.position || 1, b.position || 1), Math.max(a.position || 1, b.position || 1)) : 0;
+        const far = scale && mm > (W.comfortMm || 105) ? W.vlFar : 0, pts = W.vlShift * d + W.vlShiftSq * d * d + far;
+        cost += pts;
+        if (lines) lines.push({ rule: 'Hand shift', key: 'vlShift', detail: `the hand moves ${d} fret${d === 1 ? '' : 's'} ${where}${far ? `, ${Math.round(mm)} mm, past the comfortable reach` : ''}`, points: r2(pts) });
+      }
+    }
+    cost = Math.max(0, cost);
+    return { cost: r2(cost), lines: lines || [], pairs: pv.pairs, semitones: pv.semitones };
+  }
+  // Chooses one candidate per chord to minimise total sound penalty plus transition cost across the run, by dynamic
+  // programming. chords: [{ candidates: [{ mains|pitches, fingering?, score }], locked?: index }].
+  // Returns { choice: [index per chord], total, steps: [{ cost, lines, pairs }] between neighbours }.
+  function optimiseProgression(chords, weights, target, comfortMm) {
+    const W = Object.assign({}, DEFAULT_WEIGHTS, weights || {}, { comfortMm: comfortMm || 105 });
+    const C = chords.map((ch) => (ch.candidates || []).map((c) => Object.assign({}, c, neighbour(c, target))));
+    const n = C.length;
+    if (!n || C.some((cs) => !cs.length)) return { choice: C.map(() => -1), total: 0, steps: [] };
+    const allowed = (i, k) => chords[i].locked == null || chords[i].locked === k;
+    let cost = C[0].map((c, k) => (allowed(0, k) ? c.score : Infinity));
+    const back = [cost.map(() => -1)];
+    for (let i = 1; i < n; i++) {
+      const next = [], bk = [];
+      for (let k = 0; k < C[i].length; k++) {
+        if (!allowed(i, k)) { next.push(Infinity); bk.push(-1); continue; }
+        let best = Infinity, arg = -1;
+        for (let j = 0; j < C[i - 1].length; j++) {
+          if (cost[j] === Infinity) continue;
+          const v = cost[j] + transition(C[i - 1][j], C[i][k], W, 'prev', true).cost;
+          if (v < best - 1e-9) { best = v; arg = j; }
+        }
+        next.push(best + C[i][k].score); bk.push(arg);
+      }
+      cost = next; back.push(bk);
+    }
+    let k = 0;
+    for (let j = 1; j < cost.length; j++) if (cost[j] < cost[k] - 1e-9) k = j;
+    const choice = new Array(n);
+    for (let i = n - 1; i >= 0; i--) { choice[i] = k; k = back[i][k]; }
+    const steps = [];
+    for (let i = 1; i < n; i++) steps.push(transition(C[i - 1][choice[i - 1]], C[i][choice[i]], W, 'prev'));
+    return { choice, total: r2(cost[choice[n - 1]] === undefined ? 0 : Math.min(...cost)), steps };
+  }
+
+  // A whole progression to one target. req: { chords: [{ source, locked?: { fingering } | { pitches } }], target,
+  // capos, weights, options }. Each chord's twelve best translations are the candidates (a locked chord keeps only
+  // Bill's choice); the run is chosen by optimiseProgression. Returns each chord's candidates, the chosen index
+  // and result, and the transitions between neighbours (with the voice pairing kept for the analysis round).
+  function progression(req) {
+    const W = Object.assign({}, DEFAULT_WEIGHTS, req.weights || {});
+    const options = Object.assign({}, req.options || {}, { ranked: 40 });
+    const per = req.chords.map((ch) => {
+      const base = { source: ch.source, target: req.target, capos: req.capos, weights: req.weights, options };
+      const out = translate(base);
+      if (ch.locked) {
+        const r = evaluate(Object.assign({}, base, { analysis: out.analysis, fingering: ch.locked.fingering, pitches: ch.locked.pitches }));
+        return { analysis: out.analysis, candidates: [r], locked: 0 };
+      }
+      // About twelve candidates, best first, with at most three from any one hand position, so the run can stay
+      // in one place or move by small steps.
+      const seen = new Set(), cands = [];
+      for (const r of [...out.results, ...out.ranked]) {
+        if (cands.length >= 12 || seen.has(r.multiKey)) continue;
+        if (r.position != null && cands.filter((c) => c.position != null && Math.abs(c.position - r.position) <= 2).length >= 3) continue;
+        seen.add(r.multiKey); cands.push(r);
+      }
+      return { analysis: out.analysis, candidates: cands, locked: null };
+    });
+    if (per.some((p) => !p.candidates.length)) return { chords: per.map((p) => ({ name: p.analysis.name, candidates: p.candidates, choice: -1, chosen: null })), steps: [], total: 0 };
+    const opt = optimiseProgression(per.map((p) => ({ candidates: p.candidates, locked: p.locked })), W, req.target, (req.options || {}).comfortMm);
+    return {
+      chords: per.map((p, i) => ({ name: p.analysis.name, candidates: p.candidates, choice: opt.choice[i], chosen: p.candidates[opt.choice[i]] })),
+      steps: opt.steps, total: opt.total,
+    };
+  }
+
+  /* ───────────── 9c. Harmonic analysis (reserved for the analysis round) ───────────── */
+  // analyzeProgression(chords, key) will return, for each chord, its Roman numeral in the key (for example V7/V),
+  // its function (tonic, predominant, dominant…) and which voices move against which are held, using the pairing
+  // transition() already keeps. Not built in this round: it returns an empty analysis of the right shape.
+  function analyzeProgression(chords, key) {
+    return { pending: true, key: key || null, chords: (chords || []).map(() => ({ key: null, roman: null, function: null, note: '' })) };
+  }
+
   /* ───────────── 10a. Other ways to play the same sound ───────────── */
   // Source and target are the same instrument with the same capos. The fingering Bill entered is left out.
   // Fingerings with exactly the same pitches come first, labelled "Same notes"; after them, the best-ranked
@@ -1180,7 +1342,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes, alternatives, transition, pairVoices, optimiseProgression, progression, analyzeProgression,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     spellChord, ENHARMONIC, predictKey, traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,

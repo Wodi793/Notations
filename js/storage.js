@@ -14,9 +14,9 @@ function starterTests() {
 function defaultState() {
   return {
     v: 1, updatedAt: 0,
-    settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord' },
-    weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [],
-    work: { piano: [60, 64, 67, 71], staff: [60, 64, 67, 71], staffSpell: {}, staffLast: null, fing: {}, srcCapos: [], tgtCapos: [] },
+    settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord', tempo: 60, progHear: 'src', analysisLabels: 'off' },
+    weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [], progressions: [],
+    work: { piano: [60, 64, 67, 71], staff: [60, 64, 67, 71], staffSpell: {}, staffLast: null, prog: { chords: [], name: '' }, fing: {}, srcCapos: [], tgtCapos: [] },
     meta: { lastBackupAt: 0, picksAtBackup: 0 },
   };
 }
@@ -87,7 +87,7 @@ function backupReminder() {
 function markBackedUp() { S.meta.lastBackupAt = Date.now(); S.meta.picksAtBackup = S.picks.length; save(); }
 
 /* The artifact build also keeps a copy in the signed-in viewer's Claude account store. */
-const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups', 'meta'], library: ['favourites', 'translations', 'tests'], picks: ['picks'] };
+const PARTS = { core: ['settings', 'weights', 'taste', 'instruments', 'capoSetups', 'meta'], library: ['favourites', 'translations', 'tests', 'progressions'], picks: ['picks'] };
 const remote = { col: null, status: 'device', pushed: {}, busy: false, dirty: false, t: 0 };
 const partJson = (name) => { const o = {}; for (const k of PARTS[name]) o[k] = S[k]; return JSON.stringify(o); };
 function schedulePush() { if (!remote.col) return; clearTimeout(remote.t); remote.t = setTimeout(push, 2000); }
@@ -130,4 +130,10 @@ async function initRemote() {
 async function loadLabCases() {
   if (window.NOTATIONS_LAB_CASES) { LAB_CASES = window.NOTATIONS_LAB_CASES; return; }
   try { const r = await fetch('tests/lab-cases.json'); LAB_CASES = (await r.json()).cases; } catch (e) { LAB_CASES = []; }
+}
+let PROG_CASES = null;
+async function loadProgCases() {
+  if (window.NOTATIONS_PROG_CASES) return (PROG_CASES = window.NOTATIONS_PROG_CASES);
+  try { const r = await fetch('tests/progressions.json'); PROG_CASES = await r.json(); } catch (e) { PROG_CASES = { progressions: [], keys: [] }; }
+  return PROG_CASES;
 }

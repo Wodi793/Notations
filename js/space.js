@@ -15,7 +15,8 @@ function settleThenLayout() {
   };
   requestAnimationFrame(step);
 }
-if (window.ResizeObserver) new ResizeObserver(() => { if (S) settleThenLayout(); }).observe(document.getElementById('app'));
+// The strips are watched too: the tray or a hint line can change the bridge's height without the window changing.
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => { if (S) settleThenLayout(); }); ro.observe(document.getElementById('app')); document.querySelectorAll('.strip-body').forEach((el) => ro.observe(el)); }
 else window.addEventListener('resize', () => { if (S) settleThenLayout(); });
 if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if (S) settleThenLayout(); });
 

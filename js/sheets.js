@@ -148,7 +148,8 @@ function librarySheet() {
   const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Make one from the instrument list, under Custom: New instrument.</p>';
   const cap = S.capoSetups.map((s) => `<div class="row"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${s.courses} strings · ${s.capos.map((c) => 'fret ' + c.fret).join(' + ')}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') || '<p class="note">Save a capo arrangement from an instrument sheet and it appears here.</p>';
   /* LEARN — reserved. A fuller Learn section (why voicings work, ear training) belongs here. Not built in version one. */
-  return sec('Favourite voicings', fav) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
+  const progs = S.progressions.map((p) => `<div class="row tap" data-act="progload" data-id="${p.id}"><span class="grow"><span class="name">${esc(p.title)}</span><span class="sub">${p.chords.length} chord${p.chords.length === 1 ? '' : 's'} · ${esc(p.chords.map((c) => c.name).join(' – '))}</span></span><button class="iconbtn" data-act="progdel" data-id="${p.id}" aria-label="Delete">${ICON.x}</button></div>`).join('') || '<p class="note">Build a run of chords in the tray under the chord name, then save it from More.</p>';
+  return sec('Favourite voicings', fav) + sec('Progressions', progs) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
     sec('Learn', '<p class="note">Reserved for a fuller guide to why voicings sound the way they do. Not built yet.</p>');
 }
 
@@ -230,6 +231,10 @@ async function labRun() {
   const res = await Eng.call('lab', { tests, instruments, timing: true });
   ses.lab = tests.map((tc, i) => ({ tc, r: res.rows[i] }));
   if (res.times) ses.labTimes = res.times;
+  // Progressions and keys: properties, not exact answers, and the eight-chord timing on this device.
+  const data = await loadProgCases();
+  const pins = [...new Set(data.progressions.map((p) => p.target))].map(instr).filter(Boolean);
+  try { ses.labProg = await Eng.call('labProgressions', { data, instruments: pins, comfortMm: S.settings.comfortMm }); } catch (e) { ses.labProg = null; }
 }
 function labRefresh() { labRun().then(() => { if (stack.length && stack[stack.length - 1].fn === labSheet) drawSheet(true); }); }
 function labSheet() {
@@ -245,6 +250,12 @@ function labSheet() {
     return `<div class="row tap" data-act="case" data-i="${i}"><span class="mark ${ok ? '' : 'fail'}" aria-label="${ok ? 'Pass' : 'Fail'}"></span><span class="grow"><span class="name">${esc(x.tc.name)}</span><span class="sub">${esc(src ? src.name : 'missing instrument')} to ${esc(tgt ? tgt.name : 'missing instrument')} · ${x.r.missing ? 'instrument missing' : x.r.rank ? 'rank ' + x.r.rank : 'not in the top four'}</span></span><span class="tag ${x.tc.status === 'confirmed' ? 'ok' : ''}">${x.tc.status === 'confirmed' ? 'Confirmed' : 'Provisional'}</span></div>`;
   }).join(''));
   const T = ses.labTimes, ms = (x) => (x < 10 ? x.toFixed(1) : Math.round(x)) + ' ms';
+  const LP = ses.labProg;
+  if (LP) {
+    h += sec('Progressions', LP.progressions.map((p) => `<div class="row"><span class="mark ${p.problems.length ? 'fail' : ''}" aria-label="${p.problems.length ? 'Fail' : 'Pass'}"></span><span class="grow"><span class="name">${esc(p.name)}</span><span class="sub">${esc(p.run.join(' → '))} · ${Math.round(p.ms)} ms</span>${p.problems.map((x) => `<span class="sub warnsub">${esc(x)}</span>`).join('')}</span></div>`).join('') +
+      '<p class="note">Checked for properties, not exact answers: the top line moves by step where it can, a note is held where one could be, and no hand shift is longer than the comfortable reach. The eight-chord run should take under 300 ms.</p>');
+    h += sec('Key prediction', LP.keys.map((k) => `<div class="row"><span class="mark ${k.ok ? '' : 'fail'}"></span><span class="grow"><span class="name">${esc(k.got || 'none')}</span><span class="sub">Expected ${esc(k.want)} · ${k.chords} chord${k.chords === 1 ? '' : 's'} · confidence ${Math.round(k.confidence * 100)}%</span></span></div>`).join(''));
+  }
   h += sec('Speed on this device', T ? `<table class="bd"><tr><th>Step</th><th class="n">Median</th><th class="n">Slowest</th></tr>
     <tr><td>Translation</td><td class="n">${ms(T.translate.median)}</td><td class="n">${ms(T.translate.slowest)}</td></tr>
     <tr><td>Capo suggestion</td><td class="n">${ms(T.capo.median)}</td><td class="n">${ms(T.capo.slowest)}</td></tr></table>

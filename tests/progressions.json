@@ -1,0 +1,18 @@
+{
+ "about": "Progression and key-prediction cases. Progressions are checked for properties, not exact answers: the top line moves by step (at most a whole tone) where some playable choice allows it, common tones are held where the chords share notes, and no hand shift is longer than the comfortable reach.",
+ "progressions": [
+  { "id": "p1", "name": "ii–V–I in C, piano to mandolin", "target": "mandolin", "chords": ["D3 F3 A3 C4", "G2 F3 B3 D4", "C3 E3 G3 B3"] },
+  { "id": "p2", "name": "I–vi–IV–V in C, piano to low-G ukulele", "target": "uke-lowg", "chords": ["C3 E3 G3", "A2 C3 E3", "F2 A2 C3", "G2 B2 D3"] },
+  { "id": "p3", "name": "ii–V–I in B♭, piano to guitar", "target": "guitar", "chords": ["C3 E♭3 G3 B♭3", "F2 E♭3 A3 C4", "B♭2 D3 F3 A3"] },
+  { "id": "p4", "name": "Eight chords, piano to guitar (timing)", "target": "guitar", "chords": ["C3 E3 G3 B3", "A2 C3 E3 G3", "D3 F3 A3 C4", "G2 F3 B3 D4", "E3 G3 B3 D4", "A2 C#3 E3 G3", "D3 F3 A3 C4", "G2 F3 B3 E4"] }
+ ],
+ "keys": [
+  { "chords": ["D3 F3 A3 C4", "G3 B3 D4 F4", "C4 E4 G4 B4"], "key": "C major" },
+  { "chords": ["A3 C4 E4", "D4 F4 A4", "E3 G#3 B3 D4", "A3 C4 E4"], "key": "A minor" },
+  { "chords": ["G3 B3 D4", "C4 E4 G4", "D4 F#4 A4", "G3 B3 D4"], "key": "G major" },
+  { "chords": ["E3 G#3 B3", "A3 C#4 E4", "B3 D#4 F#4", "E3 G#3 B3"], "key": "E major" },
+  { "chords": ["D3 F3 A3", "A2 C#3 E3 G3", "D3 F3 A3"], "key": "D minor" },
+  { "chords": ["F3 A3 C4", "Bb3 D4 F4", "C4 E4 G4 Bb4", "F3 A3 C4"], "key": "F major" },
+  { "chords": ["C4 E4 G4"], "key": "C major" }
+ ]
+}

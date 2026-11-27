@@ -5,7 +5,7 @@ const Eng = {
   start() {
     try {
       if (BUILD === 'artifact') {
-        const src = document.getElementById('engine-src').textContent + '\n' + document.getElementById('worker-src').textContent;
+        const src = ['engine-src', 'progcheck-src', 'worker-src'].map((id) => document.getElementById(id).textContent).join('\n');
         this.worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
       } else this.worker = new Worker('js/engine-worker.js');
       this.worker.onmessage = (e) => this.answer(e.data);
@@ -37,6 +37,8 @@ const Eng = {
         else if (op === 'translateTop') { const r = E.translate(arg).results[0]; resolve(r ? { score: r.score, bassTier: r.bassTier } : null); }
         else if (op === 'sameNotes') resolve(E.sameNotes(arg));
         else if (op === 'alternatives') resolve(E.alternatives(arg));
+        else if (op === 'progression') resolve(E.progression(arg));
+        else if (op === 'labProgressions') { const byId = new Map(arg.instruments.map((i) => [i.id, i])); resolve(ProgCheck.run(E, arg.data, (id) => byId.get(id), arg.comfortMm)); }
         else if (op === 'lab') {
           const byId = new Map(arg.instruments.map((i) => [i.id, i])), find = (id) => (id === 'piano' ? E.PIANO : byId.get(id));
           resolve({ rows: arg.tests.map((tc) => E.runTest(tc, find, arg.weights || {}, {})), times: null });

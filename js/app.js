@@ -35,10 +35,14 @@ function recompute(delay, flash) {
   ses.gen++;
   clearTimeout(ses.trT); clearTimeout(ses.hintT);
   Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, editing: null });
+  if (ses.chipOpen != null && !ses.A.empty) chipSaveBack();
+  if (ses.progTgt !== S.settings.tgt) { ses.progTgt = S.settings.tgt; if (typeof scheduleProgression === 'function') scheduleProgression(); }
   if (ses.A.empty) { ses.out = null; ses.pending = false; return; }
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) || isStaff(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  // While a progression chip is open, its cards are ranked in context of the neighbouring chords.
+  Object.assign(ses.req, chipNeighbours());
   // Same instrument, same capos: show other ways to play this sound rather than the chord Bill already has.
   if (src.kind === 'strings' && S.settings.src === S.settings.tgt && JSON.stringify(S.work.srcCapos) === JSON.stringify(S.work.tgtCapos)) ses.req.alternatives = true;
   // Notation can show any pitches exactly, so a staff target is not translated: it notates the source.
@@ -54,6 +58,14 @@ async function translateNow(gen, req) {
   try { out = await Eng.call(op, req); } catch (e) { out = E[op](req); }
   if (gen !== ses.gen) return;
   ses.out = out; ses.pending = false; ses.card = 0;
+  // Opening a progression chip shows its chosen voicing; if the in-context ranking left it out, it is added first.
+  if (ses.wantCard) {
+    const want = ses.wantCard, key = want.fingering ? want.fingering.join(',') : want.pitches.slice().sort((a, b) => a - b).join(',');
+    const k = out.results.findIndex((r) => (r.fingering ? r.fingering.join(',') : r.pitches.join(',')) === key);
+    if (k >= 0) ses.card = k;
+    else if (want.fingering || want.pitches) { try { const r = E.evaluate(Object.assign({}, req, { analysis: ses.A, fingering: want.fingering, pitches: want.pitches })); r.custom = true; r.label = 'In the run'; ses.custom = r; } catch (e) { /* shown without it */ } }
+    ses.wantCard = null;
+  }
   renderSource(); renderBridge(); renderTarget();
   if (ses.flashNext) { ses.flashNext = false; flashComp(); }
   scheduleCapo(gen, req);
@@ -247,6 +259,7 @@ function layout() {
 function press(sel, v) { document.querySelectorAll(sel + ' button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
 function render() {
   layout();
+  if (typeof renderTray === 'function') renderTray();
   $('#chipSrc').innerHTML = `<i>From</i>${esc(side('src').name)}`;
   $('#chipTgt').innerHTML = `<i>To</i>${esc(side('tgt').name)}`;
   press('#segMode', S.settings.mode); press('#segPlay', S.settings.play); press('#segView', ses.view);
@@ -585,6 +598,9 @@ function usePick(i) {
   S.translations.unshift({ id: 't' + Date.now(), t: Date.now(), chord: ses.A.name, src: packSource(), srcName: side('src').name, tgt: tgt.id, tgtName: tgt.name, capos, voicing: packVoicing(res), text: res.text });
   if (S.translations.length > 300) S.translations.length = 300;
   ses.picked = { key: res.multiKey, result: res, losers, strength };
+  // In a progression, a hand-picked voicing locks that chord and the run is re-optimised around it.
+  const chip = ses.chipOpen != null ? prog().chords[ses.chipOpen] : null;
+  if (chip && res.kind !== 'staff') { chip.translation = packVoicing(res); chip.tgt = S.settings.tgt; chip.locked = true; scheduleProgression(); renderTray(); }
   save();
   ses.reasons = detailed() && losers.length ? {} : null;
   renderTarget(); renderBridge(); renderSource();

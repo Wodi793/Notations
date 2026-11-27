@@ -1,6 +1,7 @@
 /* ENGINE WORKER — runs the engine off the screen's thread. Each request carries an id; the page drops answers
    to requests it has moved past. In the artifact build this file is joined to the engine's source in a blob. */
 if (typeof Engine === 'undefined') importScripts('engine.js');
+if (typeof ProgCheck === 'undefined') importScripts('progcheck.js');
 const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 const OPS = {
   ping: () => 'pong',
@@ -9,6 +10,8 @@ const OPS = {
   translateTop: (req) => { const r = Engine.translate(req).results[0]; return r ? { score: r.score, bassTier: r.bassTier } : null; },
   sameNotes: (req) => Engine.sameNotes(req),
   alternatives: (req) => Engine.alternatives(req),
+  progression: (req) => Engine.progression(req),
+  labProgressions: ({ data, instruments, comfortMm }) => { const byId = new Map(instruments.map((i) => [i.id, i])); return ProgCheck.run(Engine, data, (id) => byId.get(id), comfortMm); },
   // The Lab: every case, plus timings measured on this device.
   lab: ({ tests, instruments, weights, timing }) => {
     const byId = new Map(instruments.map((i) => [i.id, i]));

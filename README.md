@@ -15,6 +15,7 @@ Live at https://wodi793.github.io/Notations/ (GitHub Pages, served from `main`).
 - `tests/`: `lab-cases.json` (the Lab's starter cases), `lab.js` (hit rates), `parity.js` with `parity-golden.json` (exact engine output on 1,664 cases), `timing.js`.
 - `tools/build-artifact.js`: builds `dist/notations-artifact.html`, the single-file Claude artifact, and stamps `sw.js`.
 - `docs/baseline.md`: the Round Two baseline and the feature checklist.
+- `docs/progression-format.md`: how progressions are stored, shared with score import.
 
 ## Checks
 
@@ -23,5 +24,6 @@ node tests/lab.js        # Lab hit rates, default weights
 node tests/parity.js     # engine output unchanged (add --update only for an intended change)
 node tests/timing.js     # engine timings
 node tests/chordname.js  # chord names parse back to the same notes
+node tests/progressions.js  # progression properties and key prediction
 node tools/build-artifact.js
 ```
