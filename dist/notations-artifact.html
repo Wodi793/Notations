@@ -13,8 +13,12 @@ img { max-width: 100%; }
   color-scheme: dark;
   --bg: #000000; --surface: #0C110F; --raised: #121A17; --hairline: #1D2924;
   --text: #ECF4F0; --text2: #8DA399;
-  --mint: #C4F5DC; --pale: #8EEAC8; --accent: #3FD0B0; --teal: #1FAE86; --rich: #138A5A; --deep: #0B5E3C;
-  --white-key: #1E2A25; --black-key: #050807; --string: #3A4B44; --ink: #00100A; --warn: #E8C47A;
+  /* Interface: white and greys. Colour is kept for notes. */
+  --accent: #F5F7F2; --pale: #C9D1CD; --deep: #3A4441; --nut: #8A938F; --capo: #48504D;
+  /* Note roles. Text on white, green, yellow and orange is ink; on red, blue and grey it is pure white. */
+  --n-top: #F5F7F2; --n-guide: #22C55E; --n-gentle: #FACC15; --n-eleven: #F97316; --n-alt: #DC2626;
+  --n-bass: #2563EB; --n-root: #6B7280; --n-ring: #E5E7EB; --n-ink: #050807; --n-white: #FFFFFF;
+  --white-key: #1E2A25; --black-key: #050807; --string: #3A4B44; --ink: #050807; --warn: #E8C47A;
   --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif;
   --sans: -apple-system, 'SF Pro Text', system-ui, 'Helvetica Neue', sans-serif;
   --gl: max(16px, env(safe-area-inset-left, 0px)); --gr: max(16px, env(safe-area-inset-right, 0px));
@@ -34,7 +38,9 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 #app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 
 /* top bar */
-.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; padding-left: var(--gl); padding-right: var(--gr); border-bottom: 2px solid var(--accent); column-gap: 8px; }
+.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; padding-left: var(--gl); padding-right: var(--gr); position: relative; column-gap: 8px; margin-bottom: 2px; }
+/* The brand rule: five equal segments in the note colours, low to high as on a keyboard. */
+.bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: linear-gradient(90deg, var(--n-bass) 0 20%, var(--n-guide) 20% 40%, var(--n-gentle) 40% 60%, var(--n-eleven) 60% 80%, var(--n-alt) 80% 100%); }
 .brand { font-family: var(--serif); font-size: 21px; font-weight: 500; letter-spacing: .005em; }
 .chips { display: flex; align-items: center; justify-content: center; min-width: 0; }
 .chip { height: 44px; display: flex; align-items: center; min-width: 0; }
@@ -60,7 +66,7 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .scroll svg { display: block; }
 .playcol { display: grid; place-items: center; border-left: 1px solid var(--hairline); }
 .play { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--accent); color: var(--accent); display: grid; place-items: center; transition: background .2s var(--ease); }
-.play:active { background: var(--deep); }
+.play:active { background: var(--raised); }
 .play svg { width: 16px; height: 16px; fill: currentColor; margin-left: 2px; }
 .txtbtn { height: 44px; padding: 0 10px; font-size: 13px; color: var(--text2); white-space: nowrap; }
 .txtbtn:active { color: var(--accent); }
@@ -85,7 +91,7 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .reasons { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; transition: opacity .25s var(--ease); }
 .reasons button { height: 44px; }
 .reasons button span { display: block; height: 30px; line-height: 28px; padding: 0 12px; border: 1px solid var(--deep); border-radius: 15px; font-size: 13px; color: var(--pale); }
-.reasons button.on span { background: var(--deep); color: var(--mint); }
+.reasons button.on span { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .bridge-right { display: flex; justify-content: flex-end; }
 
 /* cards */
@@ -163,12 +169,12 @@ button.fig b { border-bottom: 1px solid var(--deep); }
 .step output { min-width: 46px; text-align: center; }
 .tog { width: 44px; height: 44px; display: grid; place-items: center; flex: none; }
 .tog span { width: 30px; height: 30px; border-radius: 15px; border: 1px solid var(--hairline); display: grid; place-items: center; font-size: 13px; color: var(--text2); }
-.tog.on span { background: var(--deep); border-color: var(--deep); color: var(--mint); }
+.tog.on span { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .switch { width: 52px; height: 44px; display: grid; place-items: center; flex: none; }
 .switch span { width: 44px; height: 26px; border-radius: 13px; background: var(--hairline); position: relative; transition: background .2s var(--ease); }
 .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 10px; background: var(--text2); transition: transform .2s var(--ease), background .2s; }
-.switch[aria-pressed="true"] span { background: var(--deep); }
-.switch[aria-pressed="true"] span::after { transform: translateX(18px); background: var(--mint); }
+.switch[aria-pressed="true"] span { background: var(--accent); }
+.switch[aria-pressed="true"] span::after { transform: translateX(18px); background: var(--ink); }
 .stat { display: flex; gap: 28px; align-items: flex-end; padding: 14px 0 6px; flex-wrap: wrap; }
 .stat div b { display: block; font-family: var(--serif); font-weight: 400; font-size: 40px; line-height: 1; }
 .meter { height: 6px; background: var(--hairline); border-radius: 3px; position: relative; margin: 10px 0 4px; }
@@ -205,6 +211,23 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 .scroll { touch-action: pan-x; }
 .txtbtn:disabled { opacity: .3; }
 @media (max-width: 599px) { .srcname { display: none; } }
+/* Motion that means something: notes light as they sound; notes a translation drops fade to their ghost. */
+.nt, svg rect.sel { transform-box: fill-box; transform-origin: center; transition: transform .12s ease-out, filter .12s ease-out; }
+.nt.lit, svg rect.sel.lit { transform: scale(1.12); filter: brightness(1.35); }
+svg rect.sel.lit { transform: none; }
+.ghost { opacity: .4; animation: ghostIn .25s ease-out; }
+@keyframes ghostIn { from { opacity: 1; } to { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .nt.lit, svg rect.sel.lit { transform: none; } .ghost { animation: none; } }
+/* Instrument list: one typeface, name over tuning, scale length at the right, a white check on the current one. */
+.irow { gap: 12px; padding-block: 6px; }
+.iname { display: block; font-size: 15px; color: var(--text); }
+.ituning { display: block; font-size: 13px; color: var(--text2); overflow-wrap: anywhere; }
+.iscale { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.icheck { width: 22px; flex: none; display: grid; place-items: center; color: var(--accent); }
+.icheck .ico { stroke-width: 2; }
+.preview { overflow-x: auto; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.preview svg { display: block; }
+input[type="search"] { -webkit-appearance: none; appearance: none; }
 </style>
 
 <div id="app" class="roomy">
@@ -586,6 +609,11 @@ const Engine = (function () {
     mk('tenor-banjo', 'Tenor banjo, CGDA', 'Banjo', 533, 'C3 G3 D4 A4', 19),
     mk('tenor-banjo-irish', 'Tenor banjo, Irish', 'Banjo', 584, 'G2 D3 A3 E4', 19),
   ];
+  // Written octave: how many octaves above sounding pitch the instrument is traditionally written (the staff's
+  // "Written for" switch). Guitars, 12-string, 5-string banjo and octave mandolin are written an octave up. Where
+  // tradition varies (baritone and tenor guitar, tenor banjo, mandola) they stay at sounding pitch for Bill to decide.
+  const WRITTEN_UP = ['guitar', 'guitar-dropd', 'guitar-ddd', 'guitar-dadgad', 'guitar-openg', 'guitar-opend', 'guitar-nashville', 'guitar-12', 'banjo-g', 'banjo-doublec', 'banjo-sawmill', 'octave-mandolin'];
+  for (const p of PRESETS) p.writtenOctave = WRITTEN_UP.includes(p.id) ? 1 : 0;
   // Tiple tunings vary by tradition. These are starting points Bill must confirm; neither is a live preset.
   const TIPLE_TEMPLATES = [
     mk('tiple-colombian', 'Tiple (Colombian, DGBE)', 'Tiple', 530, 'D3+D4+D4 G3+G4+G4 B3+B3+B3 E4+E4+E4', 20),
@@ -1795,15 +1823,35 @@ function scheduleCapo(gen, req) {
 function markBusy() { const b = $('#tgtBody'); if (b) b.classList.toggle('busy', !!ses.pending); }
 
 /* ───────── drawing ───────── */
-function noteColour(A, pitch, isTop, isBass) {
-  const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null;
-  if (!r) return 'var(--text2)';
-  if (isTop) return 'var(--mint)';
-  if (r.role === 'third' || r.role === 'seventh') return 'var(--pale)';
-  if (r.role === 'ext' || r.role === 'alt') return 'var(--accent)';
-  if (isBass) return 'var(--teal)';
-  return 'var(--rich)';
+/* Note colours: each means something. Position wins the fill (top note white, lowest note blue); otherwise the
+   note's job in the chord decides, and heat follows tension: yellow for gentle colour, orange for the 11ths, red
+   for alterations. Every root carries a light ring wherever it sits. The shape is stored for a later
+   colour-blind mode and not drawn yet. */
+const NOTE_STYLE = {
+  top: { fill: 'var(--n-top)', ink: 'var(--n-ink)', shape: 'circle' },
+  guide: { fill: 'var(--n-guide)', ink: 'var(--n-ink)', shape: 'circle' },
+  gentle: { fill: 'var(--n-gentle)', ink: 'var(--n-ink)', shape: 'diamond' },
+  eleven: { fill: 'var(--n-eleven)', ink: 'var(--n-ink)', shape: 'diamond' },
+  alt: { fill: 'var(--n-alt)', ink: 'var(--n-white)', shape: 'triangle' },
+  bass: { fill: 'var(--n-bass)', ink: 'var(--n-white)', shape: 'circle' },
+  root: { fill: 'var(--n-root)', ink: 'var(--n-white)', shape: 'roundsquare' },
+  fifth: { fill: 'var(--n-root)', ink: 'var(--n-white)', shape: 'circle' },
+  other: { fill: 'var(--text2)', ink: 'var(--n-ink)', shape: 'circle' },
+};
+function noteRole(r) {
+  if (!r) return 'other';
+  if (r.role === 'root') return 'root';
+  if (r.role === 'fifth') return 'fifth';
+  if (r.role === 'third' || r.role === 'seventh') return 'guide';
+  if (r.role === 'ext') return r.label === '11' ? 'eleven' : 'gentle';
+  if (r.role === 'alt') return r.label === '♯11' ? 'eleven' : 'alt';
+  return 'other';
 }
+function noteStyle(A, pitch, isTop, isBass) {
+  const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null, fn = noteRole(r);
+  return Object.assign({ fn, root: !!(r && r.role === 'root') }, NOTE_STYLE[isTop ? 'top' : isBass ? 'bass' : fn], { shape: NOTE_STYLE[fn].shape });
+}
+const noteColour = (A, pitch, isTop, isBass) => noteStyle(A, pitch, isTop, isBass).fill;
 function noteLabel(A, pitch) {
   const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null;
   if (detailed()) return r ? r.label : '?';
@@ -1834,7 +1882,7 @@ function drawFretboard(o) {
   }
   if (start > 0 && ![3, 5, 7, 9, 12, 15, 17, 19, 21, 24].includes(start + 1)) s += `<text x="${cx(start + 1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text2)">${start + 1}</text>`;
   for (let k = start; k <= end; k++) {
-    if (k === 0) s += `<rect x="${fx(0) - 4}" y="${padT - 6}" width="4" height="${H - padT - padB + 12}" rx="1" fill="var(--deep)"/>`;
+    if (k === 0) s += `<rect x="${fx(0) - 4}" y="${padT - 6}" width="4" height="${H - padT - padB + 12}" rx="1" fill="var(--nut)"/>`;
     else s += `<line x1="${fx(k)}" y1="${padT - 6}" x2="${fx(k)}" y2="${H - padB + 6}" stroke="var(--hairline)" stroke-width="1"/>`;
   }
   for (let c = 0; c < n; c++) {
@@ -1852,7 +1900,7 @@ function drawFretboard(o) {
       let b = a;
       while (b + 1 < cov.length && cov[b + 1] === cov[b] + 1) b++;
       const w = Math.min(14, cw * 0.4);
-      s += `<rect x="${cx(cp.fret) - w / 2}" y="${y(cov[b]) - 8}" width="${w}" height="${y(cov[a]) - y(cov[b]) + 16}" rx="${w / 2}" fill="var(--deep)"/>`;
+      s += `<rect x="${cx(cp.fret) - w / 2}" y="${y(cov[b]) - 8}" width="${w}" height="${y(cov[a]) - y(cov[b]) + 16}" rx="${w / 2}" fill="var(--capo)"/>`;
       a = b + 1;
     }
   }
@@ -1864,12 +1912,15 @@ function drawFretboard(o) {
     if (f < 0) { s += `<text x="${ox}" y="${y(c) + 4.5}" text-anchor="middle" font-size="14" fill="var(--text2)">×</text>`; continue; }
     const opt = f === 0 ? P.open[c] : P.fret[c][f];
     if (!opt) continue;
-    const p = opt.main, status = (o.status || {})[p], col = noteColour(o.A, p, p === o.top, p === o.bass), lab = esc(noteLabel(o.A, p));
+    const p = opt.main, status = (o.status || {})[p], st = noteStyle(o.A, p, p === o.top, p === o.bass), col = st.fill, lab = esc(noteLabel(o.A, p));
     const x = f === 0 ? ox : cx(f), yy = y(c);
     if (f > 0 && (f <= start || f > end)) continue;
-    if (status === 'dropped') s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="var(--surface)" stroke="var(--deep)" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--text2)">${lab}</text>`;
+    s += `<g class="nt${status === 'dropped' ? ' ghost' : ''}" data-np="${p}">`;
+    if (status === 'dropped') s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="none" stroke="${col}" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${col}">${lab}</text>`;
     else if (f === 0) s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="var(--surface)" stroke="${col}" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs - 1}" font-weight="600" fill="${col}">${lab}</text>`;
-    else s += `<circle cx="${x}" cy="${yy}" r="${r}" fill="${col}"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--ink)">${lab}</text>`;
+    else s += `<circle cx="${x}" cy="${yy}" r="${r}" fill="${col}"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${st.ink}">${lab}</text>`;
+    if (st.root) s += `<circle cx="${x}" cy="${yy}" r="${r + 2.6}" fill="none" stroke="var(--n-ring)" stroke-width="1.8"${status === 'dropped' ? ' opacity=".4"' : ''}/>`;
+    s += '</g>';
     if (status === 'up' || status === 'down') s += `<text x="${x + r + 2}" y="${yy - r + 7}" font-size="11" fill="var(--text)">${status === 'up' ? '↑' : '↓'}</text>`;
     if (detailed() && opt.octs.length) s += `<circle cx="${x + r + 5}" cy="${yy + r - 4}" r="3.5" fill="var(--text2)"><title>Octave string: ${esc(E.pitchName(opt.octs[0]))}</title></circle>`;
   }
@@ -1884,29 +1935,33 @@ function drawKeyboard(o) {
   const ww = o.ww, H = o.H, W = whites.length * ww, bh = Math.round(H * 0.6), bw = ww * 0.62, xi = new Map(whites.map((p, i) => [p, i]));
   if (o.id) GEO[o.id] = { ww, lo: o.lo, xOf: (p) => (xi.get(isWhite(p) ? p : p - 1) || 0) * ww };
   let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${o.id ? `data-board="${o.id}"` : ''} role="img" aria-label="Piano keyboard">`;
-  const mark = (nt, x, yy, dark) => {
+  const mark = (nt, x, yy, sel) => {
     let t = '';
-    if (nt.status === 'up' || nt.status === 'down') t += `<text x="${x}" y="${yy - 13}" text-anchor="middle" font-size="11" fill="${nt.status && nt.sel ? 'var(--ink)' : 'var(--text)'}">${nt.status === 'up' ? '↑' : '↓'}</text>`;
-    return t + `<text x="${x}" y="${yy}" text-anchor="middle" font-size="${ww < 30 ? 9 : 10.5}" font-weight="600" fill="${dark ? 'var(--ink)' : 'var(--text2)'}">${esc(nt.label)}</text>`;
+    const ink = sel ? nt.ink : nt.col;
+    if (nt.status === 'up' || nt.status === 'down') t += `<text x="${x}" y="${yy - 13}" text-anchor="middle" font-size="11" fill="${sel ? nt.ink : 'var(--text)'}">${nt.status === 'up' ? '↑' : '↓'}</text>`;
+    return t + `<text x="${x}" y="${yy}" text-anchor="middle" font-size="${ww < 30 ? 9 : 10.5}" font-weight="600" fill="${ink}">${esc(nt.label)}</text>`;
   };
+  // A selected key fills with its role colour; a root also gets the light ring, inset; a dropped note keeps its
+  // key colour with a faint outline in its role colour.
+  const ring = (x, y, w, h, rx, nt, drop) => (nt.root ? `<rect x="${x + 2.5}" y="${y + 2.5}" width="${w - 5}" height="${h - 5}" rx="${rx}" fill="none" stroke="var(--n-ring)" stroke-width="1.8" pointer-events="none"${drop ? ' opacity=".4"' : ''}/>` : '');
   for (const p of whites) {
     const x = xi.get(p) * ww, nt = o.notes.get(p), drop = nt && nt.status === 'dropped';
-    s += `<rect data-p="${p}" x="${x + 1}" y="0" width="${ww - 2}" height="${H - 1}" rx="3" fill="${nt && !drop ? nt.col : 'var(--white-key)'}"/>`;
-    if (drop) s += `<rect x="${x + 3}" y="${H - 34}" width="${ww - 6}" height="30" rx="4" fill="none" stroke="var(--deep)" stroke-width="2" pointer-events="none"/>`;
-    if (nt) s += `<g pointer-events="none">${mark(Object.assign({ sel: !drop }, nt), x + ww / 2, H - 14, !drop)}</g>`;
+    s += `<rect data-p="${p}"${nt && !drop ? ' class="sel"' : ''} x="${x + 1}" y="0" width="${ww - 2}" height="${H - 1}" rx="3" fill="${nt && !drop ? nt.col : 'var(--white-key)'}"/>`;
+    if (drop) s += `<rect class="ghost" x="${x + 3}" y="${H - 34}" width="${ww - 6}" height="30" rx="4" fill="none" stroke="${nt.col}" stroke-width="2" pointer-events="none"/>`;
+    if (nt) s += ring(x + 1, 0, ww - 2, H - 1, 2, nt, drop) + `<g pointer-events="none"${drop ? ' class="ghost"' : ''}>${mark(nt, x + ww / 2, H - 14, !drop)}</g>`;
     else if (E.mod12(p) === 0) s += `<text x="${x + ww / 2}" y="${H - 9}" text-anchor="middle" font-size="9" fill="${p === 60 ? 'var(--text)' : 'var(--text2)'}" opacity="${p === 60 ? 1 : 0.7}" pointer-events="none">C${E.octaveOf(p)}</text>`;
   }
   for (let p = o.lo; p <= o.hi; p++) {
     if (isWhite(p) || !xi.has(p - 1) || !xi.has(p + 1)) continue;
     const x = (xi.get(p - 1) + 1) * ww - bw / 2, nt = o.notes.get(p), drop = nt && nt.status === 'dropped';
-    s += `<rect data-p="${p}" x="${x}" y="0" width="${bw}" height="${bh}" rx="2.5" fill="${nt && !drop ? nt.col : 'var(--black-key)'}" stroke="${drop ? 'var(--deep)' : 'var(--hairline)'}" stroke-width="${drop ? 2 : 1}"/>`;
-    if (nt) s += `<g pointer-events="none">${mark(Object.assign({ sel: !drop }, nt), x + bw / 2, bh - 9, !drop)}</g>`;
+    s += `<rect data-p="${p}"${nt && !drop ? ' class="sel"' : ''} x="${x}" y="0" width="${bw}" height="${bh}" rx="2.5" fill="${nt && !drop ? nt.col : 'var(--black-key)'}" stroke="${drop ? nt.col : 'var(--hairline)'}" stroke-width="${drop ? 2 : 1}"${drop ? ' class="ghost"' : ''}/>`;
+    if (nt) s += ring(x, 0, bw, bh, 1.5, nt, drop) + `<g pointer-events="none"${drop ? ' class="ghost"' : ''}>${mark(nt, x + bw / 2, bh - 9, !drop)}</g>`;
   }
   return s + '</svg>';
 }
 function keyNotes(A, pitches, top, bass, statusOf) {
   const m = new Map();
-  for (const p of pitches) m.set(p, { col: noteColour(A, p, p === top, p === bass), label: noteLabel(A, p), status: statusOf ? statusOf[p] : null });
+  for (const p of pitches) { const st = noteStyle(A, p, p === top, p === bass); m.set(p, { col: st.fill, ink: st.ink, root: st.root, label: noteLabel(A, p), status: statusOf ? statusOf[p] : null }); }
   return m;
 }
 
@@ -2127,13 +2182,14 @@ const ACT = {
     if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
     save(true); recompute(); render();
   },
-  play(el) {
+  async play(el) {
     Snd.unlock();
-    if (el.dataset.side === 'src') { const s = currentSource(); return Snd.play(eventsOf(side('src'), S.work.srcCapos, s), s.kind === 'piano'); }
     const tgt = side('tgt');
-    if (ses.editing) return Snd.play(eventsOf(tgt, S.work.tgtCapos, ses.editing), isPiano(tgt));
-    const c = currentCard();
-    if (c) Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt));
+    let where, sched;
+    if (el.dataset.side === 'src') { const s = currentSource(); where = $('#srcScroll'); sched = await Snd.play(eventsOf(side('src'), S.work.srcCapos, s), s.kind === 'piano'); }
+    else if (ses.editing) { where = $('#editScroll'); sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, ses.editing), isPiano(tgt)); }
+    else { const c = currentCard(); if (!c) return; where = document.querySelectorAll('#cards .card')[ses.card]; sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt)); }
+    if (sched) lightUp(where, sched);
   },
   swap() {
     const cur = currentCard(), a = S.settings.src, b = S.settings.tgt;
@@ -2217,6 +2273,19 @@ document.addEventListener('change', (e) => { const el = e.target.closest('[data-
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
 
+
+// Each note lights briefly as it sounds, on the surface that is playing.
+function lightUp(where, sched) {
+  if (!where || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const ev of sched) {
+    setTimeout(() => {
+      const els = [];
+      for (const p of new Set([ev.main, ...ev.pitches])) els.push(...where.querySelectorAll(`[data-np="${p}"], rect.sel[data-p="${p}"]`));
+      els.forEach((e) => e.classList.add('lit'));
+      setTimeout(() => els.forEach((e) => e.classList.remove('lit')), 220);
+    }, Math.max(0, ev.at * 1000));
+  }
+}
 </script>
 <script>
 /* js/sheets.js */
@@ -2274,14 +2343,33 @@ function instrSheet(which) {
       setups.map((s) => `<div class="row tap" data-act="capoload" data-id="${s.id}"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${esc(capoText(cur, s.capos))}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') +
       '<p class="note">Tap the strings a capo covers. String 1 is the highest. Uncovered strings can still be fretted below the capo.</p>');
   }
-  const row = (i, edit) => `<div class="row tap ${i.id === cur.id ? 'sel' : ''}" data-act="pickinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span>${edit ? pill('Edit', 'editinstr', `data-id="${i.id}"`) : ''}</div>`;
-  h += sec('Keys', row(E.PIANO, false));
-  if (S.instruments.length) h += sec('Your instruments', S.instruments.map((i) => row(i, true)).join(''));
-  const groups = [...new Set(E.PRESETS.map((p) => p.group))];
-  for (const g of groups) h += sec(g, E.PRESETS.filter((p) => p.group === g).map((i) => row(i, true)).join(''));
-  h += sec('Tiple', '<p class="note">Tiple tunings vary by tradition, so there is no ready-made preset. Start from the closer one, check every string, then save it.</p>' +
-    E.TIPLE_TEMPLATES.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))} · unconfirmed</span></span>${pill('Check and save', 'editinstr', `data-id="${i.id}"`)}</div>`).join(''));
-  return h;
+  return h + `<div class="row"><input class="grow" id="instrSearch" type="search" placeholder="Search by name or tuning" aria-label="Search instruments" data-inp="instrsearch" value="${esc(ses.instrQuery || '')}"></div><div id="instrList">${instrList(cur)}</div>`;
+}
+// Families, in the order the list shows them. Custom instruments come last, in their own group.
+const FAMILY = [
+  ['Guitar', ['guitar', 'guitar-dropd', 'guitar-ddd', 'guitar-dadgad', 'guitar-openg', 'guitar-opend', 'guitar-nashville', 'guitar-12']],
+  ['Baritone and tenor guitar', ['baritone-b', 'baritone-a', 'tenor-cgda', 'tenor-chicago']],
+  ['Mandolin family', ['mandolin', 'mandola', 'octave-mandolin']],
+  ['Ukulele', ['uke', 'uke-lowg', 'uke-baritone']],
+  ['Banjo', ['banjo-g', 'banjo-doublec', 'banjo-sawmill', 'tenor-banjo', 'tenor-banjo-irish']],
+];
+// "E2 A2 D3 G3 B3 E4", low to high; paired courses read "E2+E3"; a short fifth string reads "G4 from fret 5".
+const tuningText = (i) => (isPiano(i) ? 'A0 to C8' : i.courses.map((c) => c.strings.map((st) => E.pitchName(st.pitch)).join('+') + (c.startFret ? ` from fret ${c.startFret}` : '')).join(' '));
+const CHECK = '<svg class="ico check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function instrList(cur) {
+  const q = (ses.instrQuery || '').trim().toLowerCase().replace(/#/g, '♯');
+  const hit = (i) => !q || i.name.toLowerCase().includes(q) || tuningText(i).toLowerCase().includes(q);
+  const row = (i, extra) => `<div class="row tap irow ${i.id === cur.id ? 'sel' : ''}" data-act="pickinstr" data-id="${i.id}" aria-current="${i.id === cur.id}">
+    <span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))}</span></span>
+    ${isPiano(i) ? '' : `<span class="iscale">${i.scaleLengthMm} mm</span>`}${extra || ''}<span class="icheck">${i.id === cur.id ? CHECK : ''}</span></div>`;
+  const group = (title, items, extra) => { const shown = items.filter(Boolean).filter(hit); return shown.length || extra ? sec(title, (extra || '') + shown.map((i) => row(i)).join('')) : ''; };
+  let h = group('Surfaces', [E.PIANO]);
+  for (const [title, ids] of FAMILY) h += group(title, ids.map(preset));
+  h += q && !E.TIPLE_TEMPLATES.some(hit) ? '' : sec('Other', '<p class="note">Tiple tunings vary by tradition. Start from the closer one, check every pitch, then save it.</p>' +
+    E.TIPLE_TEMPLATES.filter(hit).map((i) => `<div class="row tap irow" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))} · confirm pitches</span></span>${pill('Check', 'editinstr', `data-id="${i.id}"`)}</div>`).join(''));
+  const custom = S.instruments.filter(hit).map((i) => row(i, pill('Edit', 'editinstr', `data-id="${i.id}"`))).join('');
+  h += sec('Custom', `<div class="row tap irow" data-act="newinstr"><span class="grow"><span class="iname">New instrument</span><span class="ituning">Start from any preset or from blank</span></span>${ICON.right}</div>` + custom);
+  return h || '<p class="note">No instrument matches that search.</p>';
 }
 function fixFingering(which) {
   if (which !== 'src' || isPiano(side('src'))) return;
@@ -2292,22 +2380,48 @@ function capoChanged() { fixFingering(ses.sheetSide); save(); recompute(); rende
 const capoList = () => S.work[ses.sheetSide + 'Capos'];
 
 /* instrument editor */
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+function pitchPicker(ci, si, p) {
+  const pc = E.mod12(p), oct = E.octaveOf(p);
+  return `<select data-chg="dnote" data-c="${ci}" data-s="${si}" id="dn${ci}_${si}" aria-label="Note">${NOTE_NAMES.map((n, k) => `<option value="${k}" ${k === pc ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <select data-chg="doct" data-c="${ci}" data-s="${si}" id="do${ci}_${si}" aria-label="Octave">${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((o) => `<option ${o === oct ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+}
+// What is wrong with a draft instrument, in plain words, or null.
+function draftProblem(d) {
+  if (!(d.name || '').trim()) return 'Give the instrument a name.';
+  if (!d.courses.length) return 'An instrument needs at least one string.';
+  if (!(d.scaleLengthMm >= 200 && d.scaleLengthMm <= 1100)) return 'The scale length must be between 200 and 1,100 mm.';
+  const n = d.courses.length;
+  for (let c = 0; c < n; c++) for (const st of d.courses[c].strings) if (st.pitch < 21 || st.pitch > 108) return `String ${n - c} is set to ${E.pitchName(st.pitch)}, outside the range A0 to C8.`;
+  return null;
+}
 function editorSheet() {
-  const d = ses.draft, n = d.courses.length;
-  let h = `<div class="row"><span class="grow">Name</span><input id="dName" data-chg="dname" value="${esc(d.name)}" maxlength="48" style="width:56%" aria-label="Instrument name"></div>
-    <div class="row"><span class="grow">Scale length<span class="sub">Nut to bridge. Sets how far a hand can reach.</span></span><input class="num" id="dScale" type="number" inputmode="numeric" min="200" max="1100" data-chg="dscale" value="${d.scaleLengthMm}" aria-label="Scale length in millimetres"><span class="rubric">mm</span></div>
-    <div class="row"><span class="grow">Frets</span>${stepper('dfrets', d.fretCount)}</div>`;
-  d.courses.forEach((c, ci) => {
-    let rows = `<div class="row"><span class="grow"><span class="name">String ${n - ci}${ci === 0 ? ' (bass side)' : ci === n - 1 ? ' (treble side)' : ''}</span><span class="sub">${c.startFret ? 'Starts at fret ' + c.startFret : 'Full length'}</span></span><span class="rubric">Starts at</span>${stepper('dstart', c.startFret || 0, `data-c="${ci}"`)}<button class="iconbtn" data-act="dcoursedel" data-c="${ci}" aria-label="Remove string ${n - ci}">${ICON.x}</button></div>`;
-    c.strings.forEach((s, si) => {
-      rows += `<div class="row" style="padding-left:14px"><span class="grow">${esc(E.pitchName(s.pitch))}</span>${pill('8va−', 'dpitch', `data-c="${ci}" data-s="${si}" data-d="-12"`)}${stepper('dpitch', '½', `data-c="${ci}" data-s="${si}"`)}${pill('8va+', 'dpitch', `data-c="${ci}" data-s="${si}" data-d="12"`)}
-        <select data-chg="drole" data-c="${ci}" data-s="${si}" id="role${ci}_${si}" aria-label="Role">${['main', 'unison', 'octave'].map((r) => `<option ${s.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
+  const d = ses.draft, n = d.courses.length, W = Math.max(280, ($('#sheetBody').clientWidth || 600) - 40);
+  const count = Math.min(12, d.fretCount || 22), cw = Math.min(56, (W - 56) / count);
+  let prev = '';
+  try { prev = drawFretboard({ inst: d, capos: [], fing: d.courses.map(() => null), start: 0, count, W: 56 + cw * count, H: Math.max(70, 26 + n * 16), A: null }); } catch (e) { prev = ''; }
+  const from = ses.draftNew ? `<div class="row"><span class="grow">Start from</span><select id="dFrom" data-chg="dfrom" aria-label="Start from">
+      <option value="">Blank</option>${E.PRESETS.map((p) => `<option value="${p.id}" ${ses.draftFrom === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}${S.instruments.map((p) => `<option value="${p.id}" ${ses.draftFrom === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : '';
+  let h = `<div class="preview">${prev}</div>` + from +
+    `<div class="row"><span class="grow">Name</span><input id="dName" data-chg="dname" value="${esc(d.name)}" maxlength="48" style="width:56%" aria-label="Instrument name"></div>
+    <div class="row"><span class="grow">Scale length<span class="sub">Nut to bridge, 200 to 1,100 mm. Sets how far a hand can reach.</span></span><input class="num" id="dScale" type="number" inputmode="numeric" min="200" max="1100" data-chg="dscale" value="${d.scaleLengthMm}" aria-label="Scale length in millimetres"><span class="rubric">mm</span></div>
+    <div class="row"><span class="grow">Frets</span>${stepper('dfrets', d.fretCount)}</div>
+    <div class="row"><span class="grow">Written<span class="sub">How music for it is usually written. Guitar music is written an octave above how it sounds.</span></span><div class="seg"><button data-act="dwritten" data-v="0" aria-pressed="${!d.writtenOctave}"><span>At pitch</span></button><button data-act="dwritten" data-v="1" aria-pressed="${!!d.writtenOctave}"><span>Octave up</span></button></div></div>`;
+  d.courses.slice().reverse().forEach((c, k) => {
+    const ci = n - 1 - k;
+    let rows = `<div class="row"><span class="grow"><span class="name">String ${n - ci}${ci === n - 1 ? ' (treble side)' : ci === 0 ? ' (bass side)' : ''}</span><span class="sub">${c.startFret ? 'Starts at fret ' + c.startFret : 'Full length'}</span></span><span class="rubric">Starts at</span>${stepper('dstart', c.startFret || 0, `data-c="${ci}"`)}<button class="iconbtn" data-act="dcoursedel" data-c="${ci}" aria-label="Remove string ${n - ci}">${ICON.x}</button></div>`;
+    c.strings.forEach((st, si) => {
+      rows += `<div class="row" style="padding-left:14px;flex-wrap:wrap"><span class="grow">${si === 0 ? 'Main string' : 'Strand ' + (si + 1)}</span>${pitchPicker(ci, si, st.pitch)}
+        <select data-chg="drole" data-c="${ci}" data-s="${si}" id="role${ci}_${si}" aria-label="Kind">${[['main', 'Main'], ['unison', 'Unison'], ['octave', 'Octave']].map(([v, l]) => `<option value="${v}" ${st.role === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         ${c.strings.length > 1 ? `<button class="iconbtn" data-act="dstringdel" data-c="${ci}" data-s="${si}" aria-label="Remove strand">${ICON.x}</button>` : ''}</div>`;
     });
-    if (c.strings.length < 3) rows += `<div class="row" style="padding-left:14px">${pill('Add a strand to this course', 'dstringadd', `data-c="${ci}"`)}</div>`;
-    h += sec(`Course ${ci + 1} of ${n}`, rows);
+    if (c.strings.length < 3) rows += `<div class="row" style="padding-left:14px">${pill('Add a strand', 'dstringadd', `data-c="${ci}"`)}</div>`;
+    h += sec(`String ${n - ci}`, rows);
   });
-  h += `<div class="row">${pill('Add a course', 'dcourseadd')}<span class="grow"></span>${ses.draftCustom ? pill('Delete', 'ddelete') : ''}${pill('Save as my instrument', 'dsave', '', 'primary')}</div>`;
+  const problem = draftProblem(d);
+  h += `<div class="row">${pill('Add a string', 'dcourseadd', d.courses.length >= 12 ? 'disabled' : '')}<span class="grow"></span></div>
+    ${problem ? `<p class="note warn" id="dErr">${esc(problem)}</p>` : ''}
+    <div class="row" style="flex-wrap:wrap"><span class="grow"></span>${ses.draftCustom ? pill('Duplicate', 'dduplicate') + pill(ses.confirmDelete ? 'Tap again to delete' : 'Delete', 'ddelete', '', ses.confirmDelete ? 'on' : '') : ''}${pill(ses.draftCustom ? 'Save' : 'Save as my instrument', 'dsave', problem ? 'disabled' : '', 'primary')}</div>`;
   return h;
 }
 
@@ -2322,7 +2436,7 @@ function librarySheet() {
   if (!S.favourites.length) fav += '<p class="note">Star a voicing and it is kept here. Tap one to load it as the source.</p>';
   let tr = S.translations.slice(0, 60).map((t) => `<div class="row tap" data-act="loadtr" data-id="${t.id}"><span class="grow"><span class="name">${esc(t.chord)}</span><span class="sub">${esc(t.srcName)} to ${esc(t.tgtName)} · ${esc(t.text)}</span></span><button class="iconbtn" data-act="deltr" data-id="${t.id}" aria-label="Remove">${ICON.x}</button></div>`).join('');
   if (!tr) tr = '<p class="note">Each voicing you choose with “Use this” is saved here with its source.</p>';
-  const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Edit any preset from the instrument list and save it under your own name.</p>';
+  const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Make one from the instrument list, under Custom: New instrument.</p>';
   const cap = S.capoSetups.map((s) => `<div class="row"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${s.courses} strings · ${s.capos.map((c) => 'fret ' + c.fret).join(' + ')}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') || '<p class="note">Save a capo arrangement from an instrument sheet and it appears here.</p>';
   /* LEARN — reserved. A fuller Learn section (why voicings work, ear training) belongs here. Not built in version one. */
   return sec('Favourite voicings', fav) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
@@ -2484,9 +2598,20 @@ Object.assign(ACT, {
   editinstr(el, e) {
     e.stopPropagation();
     const base = instr(el.dataset.id);
-    ses.draft = clone(base); ses.draftCustom = S.instruments.some((i) => i.id === base.id);
+    ses.draft = clone(base); ses.draftCustom = S.instruments.some((i) => i.id === base.id); ses.draftNew = false; ses.confirmDelete = false;
     if (!ses.sheetSide) ses.sheetSide = 'tgt';
-    openSheet(ses.draftCustom ? 'Edit instrument' : 'New instrument from ' + base.name, editorSheet);
+    openSheet(ses.draftCustom ? 'Edit instrument' : 'New instrument', editorSheet);
+  },
+  newinstr() {
+    ses.draftNew = true; ses.draftCustom = false; ses.confirmDelete = false; ses.draftFrom = '';
+    ses.draft = { id: 'new', name: 'New instrument', scaleLengthMm: 600, fretCount: 20, writtenOctave: 0, courses: [{ startFret: 0, strings: [{ pitch: 64, role: 'main' }] }] };
+    if (!ses.sheetSide) ses.sheetSide = 'tgt';
+    openSheet('New instrument', editorSheet);
+  },
+  dwritten(el) { ses.draft.writtenOctave = +el.dataset.v; drawSheet(true); },
+  dduplicate() {
+    const d = clone(ses.draft); d.id = 'custom-' + Date.now(); d.name = (d.name || 'Instrument') + ' copy';
+    S.instruments.push(d); save(); ses.draft = clone(d); ses.confirmDelete = false; drawSheet(); toast('Duplicated. You are now editing the copy.');
   },
   capoadd() { capoList().push(E.fullCapo(side(ses.sheetSide), 2)); capoChanged(); },
   capodel(el) { capoList().splice(+el.dataset.i, 1); capoChanged(); },
@@ -2517,20 +2642,23 @@ Object.assign(ACT, {
   dpitch(el) { const s = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; s.pitch = clamp(s.pitch + +el.dataset.d, 21, 96); drawSheet(true); },
   dstringadd(el) { const c = ses.draft.courses[+el.dataset.c]; c.strings.push({ pitch: c.strings[0].pitch, role: 'unison' }); drawSheet(true); },
   dstringdel(el) { ses.draft.courses[+el.dataset.c].strings.splice(+el.dataset.s, 1); drawSheet(true); },
-  dcourseadd() { const cs = ses.draft.courses; if (cs.length >= 8) return toast('Eight courses is the most the app handles.'); cs.push({ startFret: 0, strings: [{ pitch: clamp((cs.length ? E.mainOf(cs[cs.length - 1]) : 55) + 5, 21, 96), role: 'main' }] }); drawSheet(true); },
+  dcourseadd() { const cs = ses.draft.courses; if (cs.length >= 12) return toast('Twelve strings is the most the app handles.'); cs.push({ startFret: 0, strings: [{ pitch: clamp((cs.length ? E.mainOf(cs[cs.length - 1]) : 55) + 5, 21, 96), role: 'main' }] }); drawSheet(true); },
   dcoursedel(el) { if (ses.draft.courses.length <= 1) return toast('An instrument needs at least one string.'); ses.draft.courses.splice(+el.dataset.c, 1); drawSheet(true); },
   dsave() {
     const d = ses.draft;
     d.name = (d.name || '').trim();
-    if (!d.name) return toast('Give the instrument a name.');
+    const problem = draftProblem(d);
+    if (problem) return toast(problem);
     for (const c of d.courses) { const m = c.strings.findIndex((s) => s.role === 'main'); c.strings.forEach((s, i) => { if (i === (m < 0 ? 0 : m)) s.role = 'main'; else if (s.role === 'main') s.role = s.pitch === c.strings[m < 0 ? 0 : m].pitch ? 'unison' : 'octave'; }); }
-    if (!ses.draftCustom) { if (instr(d.id) && instr(d.id).name === d.name) d.name += ' (mine)'; d.id = 'custom-' + Date.now(); d.group = 'Yours'; S.instruments.push(d); }
+    if (!ses.draftCustom) { if (instr(d.id) && instr(d.id).name === d.name) d.name += ' (mine)'; d.id = 'custom-' + Date.now(); d.group = 'Custom'; S.instruments.push(d); }
     else S.instruments[S.instruments.findIndex((i) => i.id === d.id)] = d;
     delete S.work.fing[d.id];
     S.settings[ses.sheetSide] = d.id; S.work[ses.sheetSide + 'Capos'] = [];
     ses.fit.src = true; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
   },
   ddelete() {
+    if (!ses.confirmDelete) { ses.confirmDelete = true; return drawSheet(true); }
+    ses.confirmDelete = false;
     const id = ses.draft.id;
     S.instruments = S.instruments.filter((i) => i.id !== id);
     for (const s of ['src', 'tgt']) if (S.settings[s] === id) { S.settings[s] = s === 'src' ? 'piano' : 'mandolin'; S.work[s + 'Capos'] = []; }
@@ -2610,9 +2738,17 @@ const CHG = {
     if (key === '*') S.taste.global[k] = v; else S.taste.contexts[key].mult[k] = v;
     save(); recompute(); render(); drawSheet(true);
   },
-  dname(el) { ses.draft.name = el.value; },
-  dscale(el) { const v = parseInt(el.value, 10); if (v >= 200 && v <= 1100) ses.draft.scaleLengthMm = v; },
-  drole(el) { ses.draft.courses[+el.dataset.c].strings[+el.dataset.s].role = el.value; },
+  dname(el) { ses.draft.name = el.value; drawSheet(true); },
+  dnote(el) { const st = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; st.pitch = (E.octaveOf(st.pitch) + 1) * 12 + +el.value; drawSheet(true); },
+  doct(el) { const st = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; st.pitch = (+el.value + 1) * 12 + E.mod12(st.pitch); drawSheet(true); },
+  dfrom(el) {
+    ses.draftFrom = el.value;
+    const base = el.value ? instr(el.value) : null;
+    ses.draft = base ? Object.assign(clone(base), { id: 'new', name: base.name + ' (mine)' }) : { id: 'new', name: 'New instrument', scaleLengthMm: 600, fretCount: 20, writtenOctave: 0, courses: [{ startFret: 0, strings: [{ pitch: 64, role: 'main' }] }] };
+    drawSheet(true);
+  },
+  dscale(el) { ses.draft.scaleLengthMm = parseInt(el.value, 10) || 0; drawSheet(true); },
+  drole(el) { ses.draft.courses[+el.dataset.c].strings[+el.dataset.s].role = el.value; drawSheet(true); },
   casenote(el) { ses.lab[+el.dataset.i].tc.note = el.value; save(); },
   restorefile(el) { const f = el.files && el.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => restoreFrom(String(rd.result)); rd.readAsText(f); el.value = ''; },
 };
@@ -2622,6 +2758,14 @@ document.addEventListener('paste', (e) => {
   if (t && t.includes('"Notations"')) restoreFrom(t);
 });
 
+
+// Live search in the instrument list: only the list redraws, so the field keeps focus.
+document.addEventListener('input', (e) => {
+  if (e.target.dataset.inp !== 'instrsearch') return;
+  ses.instrQuery = e.target.value;
+  const list = document.getElementById('instrList');
+  if (list) list.innerHTML = instrList(side(ses.sheetSide));
+});
 </script>
 <script>
 /* js/space.js */

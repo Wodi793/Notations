@@ -52,14 +52,33 @@ function instrSheet(which) {
       setups.map((s) => `<div class="row tap" data-act="capoload" data-id="${s.id}"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${esc(capoText(cur, s.capos))}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') +
       '<p class="note">Tap the strings a capo covers. String 1 is the highest. Uncovered strings can still be fretted below the capo.</p>');
   }
-  const row = (i, edit) => `<div class="row tap ${i.id === cur.id ? 'sel' : ''}" data-act="pickinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span>${edit ? pill('Edit', 'editinstr', `data-id="${i.id}"`) : ''}</div>`;
-  h += sec('Keys', row(E.PIANO, false));
-  if (S.instruments.length) h += sec('Your instruments', S.instruments.map((i) => row(i, true)).join(''));
-  const groups = [...new Set(E.PRESETS.map((p) => p.group))];
-  for (const g of groups) h += sec(g, E.PRESETS.filter((p) => p.group === g).map((i) => row(i, true)).join(''));
-  h += sec('Tiple', '<p class="note">Tiple tunings vary by tradition, so there is no ready-made preset. Start from the closer one, check every string, then save it.</p>' +
-    E.TIPLE_TEMPLATES.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))} · unconfirmed</span></span>${pill('Check and save', 'editinstr', `data-id="${i.id}"`)}</div>`).join(''));
-  return h;
+  return h + `<div class="row"><input class="grow" id="instrSearch" type="search" placeholder="Search by name or tuning" aria-label="Search instruments" data-inp="instrsearch" value="${esc(ses.instrQuery || '')}"></div><div id="instrList">${instrList(cur)}</div>`;
+}
+// Families, in the order the list shows them. Custom instruments come last, in their own group.
+const FAMILY = [
+  ['Guitar', ['guitar', 'guitar-dropd', 'guitar-ddd', 'guitar-dadgad', 'guitar-openg', 'guitar-opend', 'guitar-nashville', 'guitar-12']],
+  ['Baritone and tenor guitar', ['baritone-b', 'baritone-a', 'tenor-cgda', 'tenor-chicago']],
+  ['Mandolin family', ['mandolin', 'mandola', 'octave-mandolin']],
+  ['Ukulele', ['uke', 'uke-lowg', 'uke-baritone']],
+  ['Banjo', ['banjo-g', 'banjo-doublec', 'banjo-sawmill', 'tenor-banjo', 'tenor-banjo-irish']],
+];
+// "E2 A2 D3 G3 B3 E4", low to high; paired courses read "E2+E3"; a short fifth string reads "G4 from fret 5".
+const tuningText = (i) => (isPiano(i) ? 'A0 to C8' : i.courses.map((c) => c.strings.map((st) => E.pitchName(st.pitch)).join('+') + (c.startFret ? ` from fret ${c.startFret}` : '')).join(' '));
+const CHECK = '<svg class="ico check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function instrList(cur) {
+  const q = (ses.instrQuery || '').trim().toLowerCase().replace(/#/g, '♯');
+  const hit = (i) => !q || i.name.toLowerCase().includes(q) || tuningText(i).toLowerCase().includes(q);
+  const row = (i, extra) => `<div class="row tap irow ${i.id === cur.id ? 'sel' : ''}" data-act="pickinstr" data-id="${i.id}" aria-current="${i.id === cur.id}">
+    <span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))}</span></span>
+    ${isPiano(i) ? '' : `<span class="iscale">${i.scaleLengthMm} mm</span>`}${extra || ''}<span class="icheck">${i.id === cur.id ? CHECK : ''}</span></div>`;
+  const group = (title, items, extra) => { const shown = items.filter(Boolean).filter(hit); return shown.length || extra ? sec(title, (extra || '') + shown.map((i) => row(i)).join('')) : ''; };
+  let h = group('Surfaces', [E.PIANO]);
+  for (const [title, ids] of FAMILY) h += group(title, ids.map(preset));
+  h += q && !E.TIPLE_TEMPLATES.some(hit) ? '' : sec('Other', '<p class="note">Tiple tunings vary by tradition. Start from the closer one, check every pitch, then save it.</p>' +
+    E.TIPLE_TEMPLATES.filter(hit).map((i) => `<div class="row tap irow" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))} · confirm pitches</span></span>${pill('Check', 'editinstr', `data-id="${i.id}"`)}</div>`).join(''));
+  const custom = S.instruments.filter(hit).map((i) => row(i, pill('Edit', 'editinstr', `data-id="${i.id}"`))).join('');
+  h += sec('Custom', `<div class="row tap irow" data-act="newinstr"><span class="grow"><span class="iname">New instrument</span><span class="ituning">Start from any preset or from blank</span></span>${ICON.right}</div>` + custom);
+  return h || '<p class="note">No instrument matches that search.</p>';
 }
 function fixFingering(which) {
   if (which !== 'src' || isPiano(side('src'))) return;
@@ -70,22 +89,48 @@ function capoChanged() { fixFingering(ses.sheetSide); save(); recompute(); rende
 const capoList = () => S.work[ses.sheetSide + 'Capos'];
 
 /* instrument editor */
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+function pitchPicker(ci, si, p) {
+  const pc = E.mod12(p), oct = E.octaveOf(p);
+  return `<select data-chg="dnote" data-c="${ci}" data-s="${si}" id="dn${ci}_${si}" aria-label="Note">${NOTE_NAMES.map((n, k) => `<option value="${k}" ${k === pc ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <select data-chg="doct" data-c="${ci}" data-s="${si}" id="do${ci}_${si}" aria-label="Octave">${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((o) => `<option ${o === oct ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+}
+// What is wrong with a draft instrument, in plain words, or null.
+function draftProblem(d) {
+  if (!(d.name || '').trim()) return 'Give the instrument a name.';
+  if (!d.courses.length) return 'An instrument needs at least one string.';
+  if (!(d.scaleLengthMm >= 200 && d.scaleLengthMm <= 1100)) return 'The scale length must be between 200 and 1,100 mm.';
+  const n = d.courses.length;
+  for (let c = 0; c < n; c++) for (const st of d.courses[c].strings) if (st.pitch < 21 || st.pitch > 108) return `String ${n - c} is set to ${E.pitchName(st.pitch)}, outside the range A0 to C8.`;
+  return null;
+}
 function editorSheet() {
-  const d = ses.draft, n = d.courses.length;
-  let h = `<div class="row"><span class="grow">Name</span><input id="dName" data-chg="dname" value="${esc(d.name)}" maxlength="48" style="width:56%" aria-label="Instrument name"></div>
-    <div class="row"><span class="grow">Scale length<span class="sub">Nut to bridge. Sets how far a hand can reach.</span></span><input class="num" id="dScale" type="number" inputmode="numeric" min="200" max="1100" data-chg="dscale" value="${d.scaleLengthMm}" aria-label="Scale length in millimetres"><span class="rubric">mm</span></div>
-    <div class="row"><span class="grow">Frets</span>${stepper('dfrets', d.fretCount)}</div>`;
-  d.courses.forEach((c, ci) => {
-    let rows = `<div class="row"><span class="grow"><span class="name">String ${n - ci}${ci === 0 ? ' (bass side)' : ci === n - 1 ? ' (treble side)' : ''}</span><span class="sub">${c.startFret ? 'Starts at fret ' + c.startFret : 'Full length'}</span></span><span class="rubric">Starts at</span>${stepper('dstart', c.startFret || 0, `data-c="${ci}"`)}<button class="iconbtn" data-act="dcoursedel" data-c="${ci}" aria-label="Remove string ${n - ci}">${ICON.x}</button></div>`;
-    c.strings.forEach((s, si) => {
-      rows += `<div class="row" style="padding-left:14px"><span class="grow">${esc(E.pitchName(s.pitch))}</span>${pill('8va−', 'dpitch', `data-c="${ci}" data-s="${si}" data-d="-12"`)}${stepper('dpitch', '½', `data-c="${ci}" data-s="${si}"`)}${pill('8va+', 'dpitch', `data-c="${ci}" data-s="${si}" data-d="12"`)}
-        <select data-chg="drole" data-c="${ci}" data-s="${si}" id="role${ci}_${si}" aria-label="Role">${['main', 'unison', 'octave'].map((r) => `<option ${s.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>
+  const d = ses.draft, n = d.courses.length, W = Math.max(280, ($('#sheetBody').clientWidth || 600) - 40);
+  const count = Math.min(12, d.fretCount || 22), cw = Math.min(56, (W - 56) / count);
+  let prev = '';
+  try { prev = drawFretboard({ inst: d, capos: [], fing: d.courses.map(() => null), start: 0, count, W: 56 + cw * count, H: Math.max(70, 26 + n * 16), A: null }); } catch (e) { prev = ''; }
+  const from = ses.draftNew ? `<div class="row"><span class="grow">Start from</span><select id="dFrom" data-chg="dfrom" aria-label="Start from">
+      <option value="">Blank</option>${E.PRESETS.map((p) => `<option value="${p.id}" ${ses.draftFrom === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}${S.instruments.map((p) => `<option value="${p.id}" ${ses.draftFrom === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>` : '';
+  let h = `<div class="preview">${prev}</div>` + from +
+    `<div class="row"><span class="grow">Name</span><input id="dName" data-chg="dname" value="${esc(d.name)}" maxlength="48" style="width:56%" aria-label="Instrument name"></div>
+    <div class="row"><span class="grow">Scale length<span class="sub">Nut to bridge, 200 to 1,100 mm. Sets how far a hand can reach.</span></span><input class="num" id="dScale" type="number" inputmode="numeric" min="200" max="1100" data-chg="dscale" value="${d.scaleLengthMm}" aria-label="Scale length in millimetres"><span class="rubric">mm</span></div>
+    <div class="row"><span class="grow">Frets</span>${stepper('dfrets', d.fretCount)}</div>
+    <div class="row"><span class="grow">Written<span class="sub">How music for it is usually written. Guitar music is written an octave above how it sounds.</span></span><div class="seg"><button data-act="dwritten" data-v="0" aria-pressed="${!d.writtenOctave}"><span>At pitch</span></button><button data-act="dwritten" data-v="1" aria-pressed="${!!d.writtenOctave}"><span>Octave up</span></button></div></div>`;
+  d.courses.slice().reverse().forEach((c, k) => {
+    const ci = n - 1 - k;
+    let rows = `<div class="row"><span class="grow"><span class="name">String ${n - ci}${ci === n - 1 ? ' (treble side)' : ci === 0 ? ' (bass side)' : ''}</span><span class="sub">${c.startFret ? 'Starts at fret ' + c.startFret : 'Full length'}</span></span><span class="rubric">Starts at</span>${stepper('dstart', c.startFret || 0, `data-c="${ci}"`)}<button class="iconbtn" data-act="dcoursedel" data-c="${ci}" aria-label="Remove string ${n - ci}">${ICON.x}</button></div>`;
+    c.strings.forEach((st, si) => {
+      rows += `<div class="row" style="padding-left:14px;flex-wrap:wrap"><span class="grow">${si === 0 ? 'Main string' : 'Strand ' + (si + 1)}</span>${pitchPicker(ci, si, st.pitch)}
+        <select data-chg="drole" data-c="${ci}" data-s="${si}" id="role${ci}_${si}" aria-label="Kind">${[['main', 'Main'], ['unison', 'Unison'], ['octave', 'Octave']].map(([v, l]) => `<option value="${v}" ${st.role === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         ${c.strings.length > 1 ? `<button class="iconbtn" data-act="dstringdel" data-c="${ci}" data-s="${si}" aria-label="Remove strand">${ICON.x}</button>` : ''}</div>`;
     });
-    if (c.strings.length < 3) rows += `<div class="row" style="padding-left:14px">${pill('Add a strand to this course', 'dstringadd', `data-c="${ci}"`)}</div>`;
-    h += sec(`Course ${ci + 1} of ${n}`, rows);
+    if (c.strings.length < 3) rows += `<div class="row" style="padding-left:14px">${pill('Add a strand', 'dstringadd', `data-c="${ci}"`)}</div>`;
+    h += sec(`String ${n - ci}`, rows);
   });
-  h += `<div class="row">${pill('Add a course', 'dcourseadd')}<span class="grow"></span>${ses.draftCustom ? pill('Delete', 'ddelete') : ''}${pill('Save as my instrument', 'dsave', '', 'primary')}</div>`;
+  const problem = draftProblem(d);
+  h += `<div class="row">${pill('Add a string', 'dcourseadd', d.courses.length >= 12 ? 'disabled' : '')}<span class="grow"></span></div>
+    ${problem ? `<p class="note warn" id="dErr">${esc(problem)}</p>` : ''}
+    <div class="row" style="flex-wrap:wrap"><span class="grow"></span>${ses.draftCustom ? pill('Duplicate', 'dduplicate') + pill(ses.confirmDelete ? 'Tap again to delete' : 'Delete', 'ddelete', '', ses.confirmDelete ? 'on' : '') : ''}${pill(ses.draftCustom ? 'Save' : 'Save as my instrument', 'dsave', problem ? 'disabled' : '', 'primary')}</div>`;
   return h;
 }
 
@@ -100,7 +145,7 @@ function librarySheet() {
   if (!S.favourites.length) fav += '<p class="note">Star a voicing and it is kept here. Tap one to load it as the source.</p>';
   let tr = S.translations.slice(0, 60).map((t) => `<div class="row tap" data-act="loadtr" data-id="${t.id}"><span class="grow"><span class="name">${esc(t.chord)}</span><span class="sub">${esc(t.srcName)} to ${esc(t.tgtName)} · ${esc(t.text)}</span></span><button class="iconbtn" data-act="deltr" data-id="${t.id}" aria-label="Remove">${ICON.x}</button></div>`).join('');
   if (!tr) tr = '<p class="note">Each voicing you choose with “Use this” is saved here with its source.</p>';
-  const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Edit any preset from the instrument list and save it under your own name.</p>';
+  const ins = S.instruments.map((i) => `<div class="row tap" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="name">${esc(i.name)}</span><span class="sub">${esc(tuning(i))}</span></span></div>`).join('') || '<p class="note">Make one from the instrument list, under Custom: New instrument.</p>';
   const cap = S.capoSetups.map((s) => `<div class="row"><span class="grow"><span class="name">${esc(s.name)}</span><span class="sub">${s.courses} strings · ${s.capos.map((c) => 'fret ' + c.fret).join(' + ')}</span></span><button class="iconbtn" data-act="capodrop" data-id="${s.id}" aria-label="Delete setup">${ICON.x}</button></div>`).join('') || '<p class="note">Save a capo arrangement from an instrument sheet and it appears here.</p>';
   /* LEARN — reserved. A fuller Learn section (why voicings work, ear training) belongs here. Not built in version one. */
   return sec('Favourite voicings', fav) + sec('Saved translations', tr) + sec('Your instruments', ins) + sec('Capo setups', cap) +
@@ -262,9 +307,20 @@ Object.assign(ACT, {
   editinstr(el, e) {
     e.stopPropagation();
     const base = instr(el.dataset.id);
-    ses.draft = clone(base); ses.draftCustom = S.instruments.some((i) => i.id === base.id);
+    ses.draft = clone(base); ses.draftCustom = S.instruments.some((i) => i.id === base.id); ses.draftNew = false; ses.confirmDelete = false;
     if (!ses.sheetSide) ses.sheetSide = 'tgt';
-    openSheet(ses.draftCustom ? 'Edit instrument' : 'New instrument from ' + base.name, editorSheet);
+    openSheet(ses.draftCustom ? 'Edit instrument' : 'New instrument', editorSheet);
+  },
+  newinstr() {
+    ses.draftNew = true; ses.draftCustom = false; ses.confirmDelete = false; ses.draftFrom = '';
+    ses.draft = { id: 'new', name: 'New instrument', scaleLengthMm: 600, fretCount: 20, writtenOctave: 0, courses: [{ startFret: 0, strings: [{ pitch: 64, role: 'main' }] }] };
+    if (!ses.sheetSide) ses.sheetSide = 'tgt';
+    openSheet('New instrument', editorSheet);
+  },
+  dwritten(el) { ses.draft.writtenOctave = +el.dataset.v; drawSheet(true); },
+  dduplicate() {
+    const d = clone(ses.draft); d.id = 'custom-' + Date.now(); d.name = (d.name || 'Instrument') + ' copy';
+    S.instruments.push(d); save(); ses.draft = clone(d); ses.confirmDelete = false; drawSheet(); toast('Duplicated. You are now editing the copy.');
   },
   capoadd() { capoList().push(E.fullCapo(side(ses.sheetSide), 2)); capoChanged(); },
   capodel(el) { capoList().splice(+el.dataset.i, 1); capoChanged(); },
@@ -295,20 +351,23 @@ Object.assign(ACT, {
   dpitch(el) { const s = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; s.pitch = clamp(s.pitch + +el.dataset.d, 21, 96); drawSheet(true); },
   dstringadd(el) { const c = ses.draft.courses[+el.dataset.c]; c.strings.push({ pitch: c.strings[0].pitch, role: 'unison' }); drawSheet(true); },
   dstringdel(el) { ses.draft.courses[+el.dataset.c].strings.splice(+el.dataset.s, 1); drawSheet(true); },
-  dcourseadd() { const cs = ses.draft.courses; if (cs.length >= 8) return toast('Eight courses is the most the app handles.'); cs.push({ startFret: 0, strings: [{ pitch: clamp((cs.length ? E.mainOf(cs[cs.length - 1]) : 55) + 5, 21, 96), role: 'main' }] }); drawSheet(true); },
+  dcourseadd() { const cs = ses.draft.courses; if (cs.length >= 12) return toast('Twelve strings is the most the app handles.'); cs.push({ startFret: 0, strings: [{ pitch: clamp((cs.length ? E.mainOf(cs[cs.length - 1]) : 55) + 5, 21, 96), role: 'main' }] }); drawSheet(true); },
   dcoursedel(el) { if (ses.draft.courses.length <= 1) return toast('An instrument needs at least one string.'); ses.draft.courses.splice(+el.dataset.c, 1); drawSheet(true); },
   dsave() {
     const d = ses.draft;
     d.name = (d.name || '').trim();
-    if (!d.name) return toast('Give the instrument a name.');
+    const problem = draftProblem(d);
+    if (problem) return toast(problem);
     for (const c of d.courses) { const m = c.strings.findIndex((s) => s.role === 'main'); c.strings.forEach((s, i) => { if (i === (m < 0 ? 0 : m)) s.role = 'main'; else if (s.role === 'main') s.role = s.pitch === c.strings[m < 0 ? 0 : m].pitch ? 'unison' : 'octave'; }); }
-    if (!ses.draftCustom) { if (instr(d.id) && instr(d.id).name === d.name) d.name += ' (mine)'; d.id = 'custom-' + Date.now(); d.group = 'Yours'; S.instruments.push(d); }
+    if (!ses.draftCustom) { if (instr(d.id) && instr(d.id).name === d.name) d.name += ' (mine)'; d.id = 'custom-' + Date.now(); d.group = 'Custom'; S.instruments.push(d); }
     else S.instruments[S.instruments.findIndex((i) => i.id === d.id)] = d;
     delete S.work.fing[d.id];
     S.settings[ses.sheetSide] = d.id; S.work[ses.sheetSide + 'Capos'] = [];
     ses.fit.src = true; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
   },
   ddelete() {
+    if (!ses.confirmDelete) { ses.confirmDelete = true; return drawSheet(true); }
+    ses.confirmDelete = false;
     const id = ses.draft.id;
     S.instruments = S.instruments.filter((i) => i.id !== id);
     for (const s of ['src', 'tgt']) if (S.settings[s] === id) { S.settings[s] = s === 'src' ? 'piano' : 'mandolin'; S.work[s + 'Capos'] = []; }
@@ -388,9 +447,17 @@ const CHG = {
     if (key === '*') S.taste.global[k] = v; else S.taste.contexts[key].mult[k] = v;
     save(); recompute(); render(); drawSheet(true);
   },
-  dname(el) { ses.draft.name = el.value; },
-  dscale(el) { const v = parseInt(el.value, 10); if (v >= 200 && v <= 1100) ses.draft.scaleLengthMm = v; },
-  drole(el) { ses.draft.courses[+el.dataset.c].strings[+el.dataset.s].role = el.value; },
+  dname(el) { ses.draft.name = el.value; drawSheet(true); },
+  dnote(el) { const st = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; st.pitch = (E.octaveOf(st.pitch) + 1) * 12 + +el.value; drawSheet(true); },
+  doct(el) { const st = ses.draft.courses[+el.dataset.c].strings[+el.dataset.s]; st.pitch = (+el.value + 1) * 12 + E.mod12(st.pitch); drawSheet(true); },
+  dfrom(el) {
+    ses.draftFrom = el.value;
+    const base = el.value ? instr(el.value) : null;
+    ses.draft = base ? Object.assign(clone(base), { id: 'new', name: base.name + ' (mine)' }) : { id: 'new', name: 'New instrument', scaleLengthMm: 600, fretCount: 20, writtenOctave: 0, courses: [{ startFret: 0, strings: [{ pitch: 64, role: 'main' }] }] };
+    drawSheet(true);
+  },
+  dscale(el) { ses.draft.scaleLengthMm = parseInt(el.value, 10) || 0; drawSheet(true); },
+  drole(el) { ses.draft.courses[+el.dataset.c].strings[+el.dataset.s].role = el.value; drawSheet(true); },
   casenote(el) { ses.lab[+el.dataset.i].tc.note = el.value; save(); },
   restorefile(el) { const f = el.files && el.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => restoreFrom(String(rd.result)); rd.readAsText(f); el.value = ''; },
 };
@@ -400,3 +467,11 @@ document.addEventListener('paste', (e) => {
   if (t && t.includes('"Notations"')) restoreFrom(t);
 });
 
+
+// Live search in the instrument list: only the list redraws, so the field keeps focus.
+document.addEventListener('input', (e) => {
+  if (e.target.dataset.inp !== 'instrsearch') return;
+  ses.instrQuery = e.target.value;
+  const list = document.getElementById('instrList');
+  if (list) list.innerHTML = instrList(side(ses.sheetSide));
+});

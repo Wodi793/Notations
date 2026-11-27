@@ -9,8 +9,12 @@ img { max-width: 100%; }
   color-scheme: dark;
   --bg: #000000; --surface: #0C110F; --raised: #121A17; --hairline: #1D2924;
   --text: #ECF4F0; --text2: #8DA399;
-  --mint: #C4F5DC; --pale: #8EEAC8; --accent: #3FD0B0; --teal: #1FAE86; --rich: #138A5A; --deep: #0B5E3C;
-  --white-key: #1E2A25; --black-key: #050807; --string: #3A4B44; --ink: #00100A; --warn: #E8C47A;
+  /* Interface: white and greys. Colour is kept for notes. */
+  --accent: #F5F7F2; --pale: #C9D1CD; --deep: #3A4441; --nut: #8A938F; --capo: #48504D;
+  /* Note roles. Text on white, green, yellow and orange is ink; on red, blue and grey it is pure white. */
+  --n-top: #F5F7F2; --n-guide: #22C55E; --n-gentle: #FACC15; --n-eleven: #F97316; --n-alt: #DC2626;
+  --n-bass: #2563EB; --n-root: #6B7280; --n-ring: #E5E7EB; --n-ink: #050807; --n-white: #FFFFFF;
+  --white-key: #1E2A25; --black-key: #050807; --string: #3A4B44; --ink: #050807; --warn: #E8C47A;
   --serif: 'Newsreader', 'Iowan Old Style', Georgia, serif;
   --sans: -apple-system, 'SF Pro Text', system-ui, 'Helvetica Neue', sans-serif;
   --gl: max(16px, env(safe-area-inset-left, 0px)); --gr: max(16px, env(safe-area-inset-right, 0px));
@@ -30,7 +34,9 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 #app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 
 /* top bar */
-.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; padding-left: var(--gl); padding-right: var(--gr); border-bottom: 2px solid var(--accent); column-gap: 8px; }
+.bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 44px; padding-left: var(--gl); padding-right: var(--gr); position: relative; column-gap: 8px; margin-bottom: 2px; }
+/* The brand rule: five equal segments in the note colours, low to high as on a keyboard. */
+.bar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: linear-gradient(90deg, var(--n-bass) 0 20%, var(--n-guide) 20% 40%, var(--n-gentle) 40% 60%, var(--n-eleven) 60% 80%, var(--n-alt) 80% 100%); }
 .brand { font-family: var(--serif); font-size: 21px; font-weight: 500; letter-spacing: .005em; }
 .chips { display: flex; align-items: center; justify-content: center; min-width: 0; }
 .chip { height: 44px; display: flex; align-items: center; min-width: 0; }
@@ -56,7 +62,7 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .scroll svg { display: block; }
 .playcol { display: grid; place-items: center; border-left: 1px solid var(--hairline); }
 .play { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--accent); color: var(--accent); display: grid; place-items: center; transition: background .2s var(--ease); }
-.play:active { background: var(--deep); }
+.play:active { background: var(--raised); }
 .play svg { width: 16px; height: 16px; fill: currentColor; margin-left: 2px; }
 .txtbtn { height: 44px; padding: 0 10px; font-size: 13px; color: var(--text2); white-space: nowrap; }
 .txtbtn:active { color: var(--accent); }
@@ -81,7 +87,7 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .reasons { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; transition: opacity .25s var(--ease); }
 .reasons button { height: 44px; }
 .reasons button span { display: block; height: 30px; line-height: 28px; padding: 0 12px; border: 1px solid var(--deep); border-radius: 15px; font-size: 13px; color: var(--pale); }
-.reasons button.on span { background: var(--deep); color: var(--mint); }
+.reasons button.on span { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .bridge-right { display: flex; justify-content: flex-end; }
 
 /* cards */
@@ -159,12 +165,12 @@ button.fig b { border-bottom: 1px solid var(--deep); }
 .step output { min-width: 46px; text-align: center; }
 .tog { width: 44px; height: 44px; display: grid; place-items: center; flex: none; }
 .tog span { width: 30px; height: 30px; border-radius: 15px; border: 1px solid var(--hairline); display: grid; place-items: center; font-size: 13px; color: var(--text2); }
-.tog.on span { background: var(--deep); border-color: var(--deep); color: var(--mint); }
+.tog.on span { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .switch { width: 52px; height: 44px; display: grid; place-items: center; flex: none; }
 .switch span { width: 44px; height: 26px; border-radius: 13px; background: var(--hairline); position: relative; transition: background .2s var(--ease); }
 .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 10px; background: var(--text2); transition: transform .2s var(--ease), background .2s; }
-.switch[aria-pressed="true"] span { background: var(--deep); }
-.switch[aria-pressed="true"] span::after { transform: translateX(18px); background: var(--mint); }
+.switch[aria-pressed="true"] span { background: var(--accent); }
+.switch[aria-pressed="true"] span::after { transform: translateX(18px); background: var(--ink); }
 .stat { display: flex; gap: 28px; align-items: flex-end; padding: 14px 0 6px; flex-wrap: wrap; }
 .stat div b { display: block; font-family: var(--serif); font-weight: 400; font-size: 40px; line-height: 1; }
 .meter { height: 6px; background: var(--hairline); border-radius: 3px; position: relative; margin: 10px 0 4px; }
@@ -201,3 +207,20 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 .scroll { touch-action: pan-x; }
 .txtbtn:disabled { opacity: .3; }
 @media (max-width: 599px) { .srcname { display: none; } }
+/* Motion that means something: notes light as they sound; notes a translation drops fade to their ghost. */
+.nt, svg rect.sel { transform-box: fill-box; transform-origin: center; transition: transform .12s ease-out, filter .12s ease-out; }
+.nt.lit, svg rect.sel.lit { transform: scale(1.12); filter: brightness(1.35); }
+svg rect.sel.lit { transform: none; }
+.ghost { opacity: .4; animation: ghostIn .25s ease-out; }
+@keyframes ghostIn { from { opacity: 1; } to { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .nt.lit, svg rect.sel.lit { transform: none; } .ghost { animation: none; } }
+/* Instrument list: one typeface, name over tuning, scale length at the right, a white check on the current one. */
+.irow { gap: 12px; padding-block: 6px; }
+.iname { display: block; font-size: 15px; color: var(--text); }
+.ituning { display: block; font-size: 13px; color: var(--text2); overflow-wrap: anywhere; }
+.iscale { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.icheck { width: 22px; flex: none; display: grid; place-items: center; color: var(--accent); }
+.icheck .ico { stroke-width: 2; }
+.preview { overflow-x: auto; padding: 8px 0; border-bottom: 1px solid var(--hairline); }
+.preview svg { display: block; }
+input[type="search"] { -webkit-appearance: none; appearance: none; }

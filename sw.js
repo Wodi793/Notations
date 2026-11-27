@@ -1,6 +1,6 @@
 /* Offline support for the Home Screen app. Caches the app shell under a versioned name; tools/build-artifact.js
    stamps VERSION from the files' contents, so any change to the app produces a new cache and an update offer. */
-const VERSION = 'ae7adac210';
+const VERSION = '54087efcaf';
 const CACHE = 'notations-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',

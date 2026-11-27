@@ -279,6 +279,11 @@ const Engine = (function () {
     mk('tenor-banjo', 'Tenor banjo, CGDA', 'Banjo', 533, 'C3 G3 D4 A4', 19),
     mk('tenor-banjo-irish', 'Tenor banjo, Irish', 'Banjo', 584, 'G2 D3 A3 E4', 19),
   ];
+  // Written octave: how many octaves above sounding pitch the instrument is traditionally written (the staff's
+  // "Written for" switch). Guitars, 12-string, 5-string banjo and octave mandolin are written an octave up. Where
+  // tradition varies (baritone and tenor guitar, tenor banjo, mandola) they stay at sounding pitch for Bill to decide.
+  const WRITTEN_UP = ['guitar', 'guitar-dropd', 'guitar-ddd', 'guitar-dadgad', 'guitar-openg', 'guitar-opend', 'guitar-nashville', 'guitar-12', 'banjo-g', 'banjo-doublec', 'banjo-sawmill', 'octave-mandolin'];
+  for (const p of PRESETS) p.writtenOctave = WRITTEN_UP.includes(p.id) ? 1 : 0;
   // Tiple tunings vary by tradition. These are starting points Bill must confirm; neither is a live preset.
   const TIPLE_TEMPLATES = [
     mk('tiple-colombian', 'Tiple (Colombian, DGBE)', 'Tiple', 530, 'D3+D4+D4 G3+G4+G4 B3+B3+B3 E4+E4+E4', 20),

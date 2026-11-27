@@ -69,15 +69,35 @@ function scheduleCapo(gen, req) {
 function markBusy() { const b = $('#tgtBody'); if (b) b.classList.toggle('busy', !!ses.pending); }
 
 /* ───────── drawing ───────── */
-function noteColour(A, pitch, isTop, isBass) {
-  const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null;
-  if (!r) return 'var(--text2)';
-  if (isTop) return 'var(--mint)';
-  if (r.role === 'third' || r.role === 'seventh') return 'var(--pale)';
-  if (r.role === 'ext' || r.role === 'alt') return 'var(--accent)';
-  if (isBass) return 'var(--teal)';
-  return 'var(--rich)';
+/* Note colours: each means something. Position wins the fill (top note white, lowest note blue); otherwise the
+   note's job in the chord decides, and heat follows tension: yellow for gentle colour, orange for the 11ths, red
+   for alterations. Every root carries a light ring wherever it sits. The shape is stored for a later
+   colour-blind mode and not drawn yet. */
+const NOTE_STYLE = {
+  top: { fill: 'var(--n-top)', ink: 'var(--n-ink)', shape: 'circle' },
+  guide: { fill: 'var(--n-guide)', ink: 'var(--n-ink)', shape: 'circle' },
+  gentle: { fill: 'var(--n-gentle)', ink: 'var(--n-ink)', shape: 'diamond' },
+  eleven: { fill: 'var(--n-eleven)', ink: 'var(--n-ink)', shape: 'diamond' },
+  alt: { fill: 'var(--n-alt)', ink: 'var(--n-white)', shape: 'triangle' },
+  bass: { fill: 'var(--n-bass)', ink: 'var(--n-white)', shape: 'circle' },
+  root: { fill: 'var(--n-root)', ink: 'var(--n-white)', shape: 'roundsquare' },
+  fifth: { fill: 'var(--n-root)', ink: 'var(--n-white)', shape: 'circle' },
+  other: { fill: 'var(--text2)', ink: 'var(--n-ink)', shape: 'circle' },
+};
+function noteRole(r) {
+  if (!r) return 'other';
+  if (r.role === 'root') return 'root';
+  if (r.role === 'fifth') return 'fifth';
+  if (r.role === 'third' || r.role === 'seventh') return 'guide';
+  if (r.role === 'ext') return r.label === '11' ? 'eleven' : 'gentle';
+  if (r.role === 'alt') return r.label === '♯11' ? 'eleven' : 'alt';
+  return 'other';
 }
+function noteStyle(A, pitch, isTop, isBass) {
+  const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null, fn = noteRole(r);
+  return Object.assign({ fn, root: !!(r && r.role === 'root') }, NOTE_STYLE[isTop ? 'top' : isBass ? 'bass' : fn], { shape: NOTE_STYLE[fn].shape });
+}
+const noteColour = (A, pitch, isTop, isBass) => noteStyle(A, pitch, isTop, isBass).fill;
 function noteLabel(A, pitch) {
   const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null;
   if (detailed()) return r ? r.label : '?';
@@ -108,7 +128,7 @@ function drawFretboard(o) {
   }
   if (start > 0 && ![3, 5, 7, 9, 12, 15, 17, 19, 21, 24].includes(start + 1)) s += `<text x="${cx(start + 1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text2)">${start + 1}</text>`;
   for (let k = start; k <= end; k++) {
-    if (k === 0) s += `<rect x="${fx(0) - 4}" y="${padT - 6}" width="4" height="${H - padT - padB + 12}" rx="1" fill="var(--deep)"/>`;
+    if (k === 0) s += `<rect x="${fx(0) - 4}" y="${padT - 6}" width="4" height="${H - padT - padB + 12}" rx="1" fill="var(--nut)"/>`;
     else s += `<line x1="${fx(k)}" y1="${padT - 6}" x2="${fx(k)}" y2="${H - padB + 6}" stroke="var(--hairline)" stroke-width="1"/>`;
   }
   for (let c = 0; c < n; c++) {
@@ -126,7 +146,7 @@ function drawFretboard(o) {
       let b = a;
       while (b + 1 < cov.length && cov[b + 1] === cov[b] + 1) b++;
       const w = Math.min(14, cw * 0.4);
-      s += `<rect x="${cx(cp.fret) - w / 2}" y="${y(cov[b]) - 8}" width="${w}" height="${y(cov[a]) - y(cov[b]) + 16}" rx="${w / 2}" fill="var(--deep)"/>`;
+      s += `<rect x="${cx(cp.fret) - w / 2}" y="${y(cov[b]) - 8}" width="${w}" height="${y(cov[a]) - y(cov[b]) + 16}" rx="${w / 2}" fill="var(--capo)"/>`;
       a = b + 1;
     }
   }
@@ -138,12 +158,15 @@ function drawFretboard(o) {
     if (f < 0) { s += `<text x="${ox}" y="${y(c) + 4.5}" text-anchor="middle" font-size="14" fill="var(--text2)">×</text>`; continue; }
     const opt = f === 0 ? P.open[c] : P.fret[c][f];
     if (!opt) continue;
-    const p = opt.main, status = (o.status || {})[p], col = noteColour(o.A, p, p === o.top, p === o.bass), lab = esc(noteLabel(o.A, p));
+    const p = opt.main, status = (o.status || {})[p], st = noteStyle(o.A, p, p === o.top, p === o.bass), col = st.fill, lab = esc(noteLabel(o.A, p));
     const x = f === 0 ? ox : cx(f), yy = y(c);
     if (f > 0 && (f <= start || f > end)) continue;
-    if (status === 'dropped') s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="var(--surface)" stroke="var(--deep)" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--text2)">${lab}</text>`;
+    s += `<g class="nt${status === 'dropped' ? ' ghost' : ''}" data-np="${p}">`;
+    if (status === 'dropped') s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="none" stroke="${col}" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${col}">${lab}</text>`;
     else if (f === 0) s += `<circle cx="${x}" cy="${yy}" r="${r - 1}" fill="var(--surface)" stroke="${col}" stroke-width="2"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs - 1}" font-weight="600" fill="${col}">${lab}</text>`;
-    else s += `<circle cx="${x}" cy="${yy}" r="${r}" fill="${col}"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--ink)">${lab}</text>`;
+    else s += `<circle cx="${x}" cy="${yy}" r="${r}" fill="${col}"/><text x="${x}" y="${yy + 3.5}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="${st.ink}">${lab}</text>`;
+    if (st.root) s += `<circle cx="${x}" cy="${yy}" r="${r + 2.6}" fill="none" stroke="var(--n-ring)" stroke-width="1.8"${status === 'dropped' ? ' opacity=".4"' : ''}/>`;
+    s += '</g>';
     if (status === 'up' || status === 'down') s += `<text x="${x + r + 2}" y="${yy - r + 7}" font-size="11" fill="var(--text)">${status === 'up' ? '↑' : '↓'}</text>`;
     if (detailed() && opt.octs.length) s += `<circle cx="${x + r + 5}" cy="${yy + r - 4}" r="3.5" fill="var(--text2)"><title>Octave string: ${esc(E.pitchName(opt.octs[0]))}</title></circle>`;
   }
@@ -158,29 +181,33 @@ function drawKeyboard(o) {
   const ww = o.ww, H = o.H, W = whites.length * ww, bh = Math.round(H * 0.6), bw = ww * 0.62, xi = new Map(whites.map((p, i) => [p, i]));
   if (o.id) GEO[o.id] = { ww, lo: o.lo, xOf: (p) => (xi.get(isWhite(p) ? p : p - 1) || 0) * ww };
   let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${o.id ? `data-board="${o.id}"` : ''} role="img" aria-label="Piano keyboard">`;
-  const mark = (nt, x, yy, dark) => {
+  const mark = (nt, x, yy, sel) => {
     let t = '';
-    if (nt.status === 'up' || nt.status === 'down') t += `<text x="${x}" y="${yy - 13}" text-anchor="middle" font-size="11" fill="${nt.status && nt.sel ? 'var(--ink)' : 'var(--text)'}">${nt.status === 'up' ? '↑' : '↓'}</text>`;
-    return t + `<text x="${x}" y="${yy}" text-anchor="middle" font-size="${ww < 30 ? 9 : 10.5}" font-weight="600" fill="${dark ? 'var(--ink)' : 'var(--text2)'}">${esc(nt.label)}</text>`;
+    const ink = sel ? nt.ink : nt.col;
+    if (nt.status === 'up' || nt.status === 'down') t += `<text x="${x}" y="${yy - 13}" text-anchor="middle" font-size="11" fill="${sel ? nt.ink : 'var(--text)'}">${nt.status === 'up' ? '↑' : '↓'}</text>`;
+    return t + `<text x="${x}" y="${yy}" text-anchor="middle" font-size="${ww < 30 ? 9 : 10.5}" font-weight="600" fill="${ink}">${esc(nt.label)}</text>`;
   };
+  // A selected key fills with its role colour; a root also gets the light ring, inset; a dropped note keeps its
+  // key colour with a faint outline in its role colour.
+  const ring = (x, y, w, h, rx, nt, drop) => (nt.root ? `<rect x="${x + 2.5}" y="${y + 2.5}" width="${w - 5}" height="${h - 5}" rx="${rx}" fill="none" stroke="var(--n-ring)" stroke-width="1.8" pointer-events="none"${drop ? ' opacity=".4"' : ''}/>` : '');
   for (const p of whites) {
     const x = xi.get(p) * ww, nt = o.notes.get(p), drop = nt && nt.status === 'dropped';
-    s += `<rect data-p="${p}" x="${x + 1}" y="0" width="${ww - 2}" height="${H - 1}" rx="3" fill="${nt && !drop ? nt.col : 'var(--white-key)'}"/>`;
-    if (drop) s += `<rect x="${x + 3}" y="${H - 34}" width="${ww - 6}" height="30" rx="4" fill="none" stroke="var(--deep)" stroke-width="2" pointer-events="none"/>`;
-    if (nt) s += `<g pointer-events="none">${mark(Object.assign({ sel: !drop }, nt), x + ww / 2, H - 14, !drop)}</g>`;
+    s += `<rect data-p="${p}"${nt && !drop ? ' class="sel"' : ''} x="${x + 1}" y="0" width="${ww - 2}" height="${H - 1}" rx="3" fill="${nt && !drop ? nt.col : 'var(--white-key)'}"/>`;
+    if (drop) s += `<rect class="ghost" x="${x + 3}" y="${H - 34}" width="${ww - 6}" height="30" rx="4" fill="none" stroke="${nt.col}" stroke-width="2" pointer-events="none"/>`;
+    if (nt) s += ring(x + 1, 0, ww - 2, H - 1, 2, nt, drop) + `<g pointer-events="none"${drop ? ' class="ghost"' : ''}>${mark(nt, x + ww / 2, H - 14, !drop)}</g>`;
     else if (E.mod12(p) === 0) s += `<text x="${x + ww / 2}" y="${H - 9}" text-anchor="middle" font-size="9" fill="${p === 60 ? 'var(--text)' : 'var(--text2)'}" opacity="${p === 60 ? 1 : 0.7}" pointer-events="none">C${E.octaveOf(p)}</text>`;
   }
   for (let p = o.lo; p <= o.hi; p++) {
     if (isWhite(p) || !xi.has(p - 1) || !xi.has(p + 1)) continue;
     const x = (xi.get(p - 1) + 1) * ww - bw / 2, nt = o.notes.get(p), drop = nt && nt.status === 'dropped';
-    s += `<rect data-p="${p}" x="${x}" y="0" width="${bw}" height="${bh}" rx="2.5" fill="${nt && !drop ? nt.col : 'var(--black-key)'}" stroke="${drop ? 'var(--deep)' : 'var(--hairline)'}" stroke-width="${drop ? 2 : 1}"/>`;
-    if (nt) s += `<g pointer-events="none">${mark(Object.assign({ sel: !drop }, nt), x + bw / 2, bh - 9, !drop)}</g>`;
+    s += `<rect data-p="${p}"${nt && !drop ? ' class="sel"' : ''} x="${x}" y="0" width="${bw}" height="${bh}" rx="2.5" fill="${nt && !drop ? nt.col : 'var(--black-key)'}" stroke="${drop ? nt.col : 'var(--hairline)'}" stroke-width="${drop ? 2 : 1}"${drop ? ' class="ghost"' : ''}/>`;
+    if (nt) s += ring(x, 0, bw, bh, 1.5, nt, drop) + `<g pointer-events="none"${drop ? ' class="ghost"' : ''}>${mark(nt, x + bw / 2, bh - 9, !drop)}</g>`;
   }
   return s + '</svg>';
 }
 function keyNotes(A, pitches, top, bass, statusOf) {
   const m = new Map();
-  for (const p of pitches) m.set(p, { col: noteColour(A, p, p === top, p === bass), label: noteLabel(A, p), status: statusOf ? statusOf[p] : null });
+  for (const p of pitches) { const st = noteStyle(A, p, p === top, p === bass); m.set(p, { col: st.fill, ink: st.ink, root: st.root, label: noteLabel(A, p), status: statusOf ? statusOf[p] : null }); }
   return m;
 }
 
@@ -401,13 +428,14 @@ const ACT = {
     if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
     save(true); recompute(); render();
   },
-  play(el) {
+  async play(el) {
     Snd.unlock();
-    if (el.dataset.side === 'src') { const s = currentSource(); return Snd.play(eventsOf(side('src'), S.work.srcCapos, s), s.kind === 'piano'); }
     const tgt = side('tgt');
-    if (ses.editing) return Snd.play(eventsOf(tgt, S.work.tgtCapos, ses.editing), isPiano(tgt));
-    const c = currentCard();
-    if (c) Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt));
+    let where, sched;
+    if (el.dataset.side === 'src') { const s = currentSource(); where = $('#srcScroll'); sched = await Snd.play(eventsOf(side('src'), S.work.srcCapos, s), s.kind === 'piano'); }
+    else if (ses.editing) { where = $('#editScroll'); sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, ses.editing), isPiano(tgt)); }
+    else { const c = currentCard(); if (!c) return; where = document.querySelectorAll('#cards .card')[ses.card]; sched = await Snd.play(eventsOf(tgt, S.work.tgtCapos, c), isPiano(tgt)); }
+    if (sched) lightUp(where, sched);
   },
   swap() {
     const cur = currentCard(), a = S.settings.src, b = S.settings.tgt;
@@ -491,3 +519,16 @@ document.addEventListener('change', (e) => { const el = e.target.closest('[data-
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
 
+
+// Each note lights briefly as it sounds, on the surface that is playing.
+function lightUp(where, sched) {
+  if (!where || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (const ev of sched) {
+    setTimeout(() => {
+      const els = [];
+      for (const p of new Set([ev.main, ...ev.pitches])) els.push(...where.querySelectorAll(`[data-np="${p}"], rect.sel[data-p="${p}"]`));
+      els.forEach((e) => e.classList.add('lit'));
+      setTimeout(() => els.forEach((e) => e.classList.remove('lit')), 220);
+    }, Math.max(0, ev.at * 1000));
+  }
+}
