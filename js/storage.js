@@ -16,7 +16,7 @@ function defaultState() {
     v: 1, updatedAt: 0,
     settings: { mode: 'simple', play: 'block', comfortMm: 105, impossibleMm: 135, a4: 440, preferEasier: false, hintShown: false, src: 'piano', tgt: 'mandolin', libGroup: 'chord' },
     weights: {}, taste: E.newTaste(), instruments: [], capoSetups: [], favourites: [], translations: [], tests: starterTests(), picks: [],
-    work: { piano: [60, 64, 67, 71], fing: {}, srcCapos: [], tgtCapos: [] },
+    work: { piano: [60, 64, 67, 71], staff: [60, 64, 67, 71], staffSpell: {}, staffLast: null, fing: {}, srcCapos: [], tgtCapos: [] },
     meta: { lastBackupAt: 0, picksAtBackup: 0 },
   };
 }

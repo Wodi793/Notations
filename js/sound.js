@@ -91,7 +91,7 @@ const Snd = {
   },
 };
 function eventsOf(inst, capos, voicing) {
-  if (isPiano(inst)) return voicing.pitches.slice().sort((a, b) => a - b).map((p) => ({ main: p, pitches: [{ p, g: 1 }] }));
+  if (isPiano(inst) || isStaff(inst)) return voicing.pitches.slice().sort((a, b) => a - b).map((p) => ({ main: p, pitches: [{ p, g: 1 }] }));
   const P = E.prepare(inst, capos), ev = [];
   voicing.fingering.forEach((f, c) => {
     if (f == null || f < 0) return;

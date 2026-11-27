@@ -32,7 +32,7 @@ document.addEventListener('touchstart', (e) => {
   const box = boxOf(e.target);
   if (!box || e.touches.length !== 2) return;
   const [a, b] = e.touches, rect = box.getBoundingClientRect(), id = box.id === 'srcScroll' ? 'src' : 'edit', g = GEO[id];
-  if (!g) return;
+  if (!g || g.staff) return;
   const kind = g.ww ? 'kb' : 'fb', z0 = g.ww || g.cw, fx = (a.clientX + b.clientX) / 2 - rect.left, origin = g.ww ? 0 : g.zone;
   pinch = { box, id, kind, d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z0, fx, origin, anchor: (box.scrollLeft + fx - origin) / z0 };
   touch.gestureAt = Date.now();
@@ -111,7 +111,7 @@ function shapeShift(inst, capos, fing, d) {
   return h.fingers <= 4 && h.span <= S.settings.impossibleMm ? out : null;
 }
 function rangeOf(inst, capos) {
-  if (isPiano(inst)) return [21, 108];
+  if (isPiano(inst) || isStaff(inst)) return [21, 108];
   const P = E.prepare(inst, capos);
   let lo = 999, hi = 0;
   for (let c = 0; c < P.n; c++) { lo = Math.min(lo, P.open[c].main); const top = P.fret[c][P.fretCount]; if (top) hi = Math.max(hi, top.main); }
@@ -132,7 +132,8 @@ Object.assign(ACT, {
   async octchord(el) {
     const d = +el.dataset.d, inst = side('src');
     if (!canMoveChord(d)) return;
-    if (isPiano(inst)) S.work.piano = S.work.piano.map((p) => p + 12 * d);
+    if (isStaff(inst)) { S.work.staff = S.work.staff.map((p) => p + 12 * d); S.work.staffSpell = {}; S.work.staffLast = null; }
+    else if (isPiano(inst)) S.work.piano = S.work.piano.map((p) => p + 12 * d);
     else {
       const fing = srcFing(), moved = shapeShift(inst, S.work.srcCapos, fing, d);
       if (moved) S.work.fing[inst.id] = moved;

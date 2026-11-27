@@ -2,7 +2,7 @@
 /* ───────── session ───────── */
 const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, fit: { src: true, edit: true }, gen: 0, pending: false, trT: 0, flashNext: false };
 const GEO = {};
-const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
+const instr = (id) => (id === 'piano' ? E.PIANO : id === 'staff' ? STAFF : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
 const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
 const isPiano = (i) => i.kind === 'piano';
 const detailed = () => S.settings.mode === 'detailed';
@@ -15,11 +15,13 @@ function srcFing() {
 }
 function currentSource() {
   const i = side('src');
+  if (isStaff(i)) return { kind: 'piano', pitches: (S.work.staff || []).slice().sort((a, b) => a - b) };
   if (isPiano(i)) return { kind: 'piano', pitches: S.work.piano.slice().sort((a, b) => a - b) };
   return { kind: 'strings', instrument: i, capos: S.work.srcCapos, fingering: srcFing().map((f) => (f == null ? -1 : f)) };
 }
 function packSource() {
   const s = currentSource();
+  if (isStaff(side('src'))) return { kind: 'staff', pitches: s.pitches };
   return s.kind === 'piano' ? { kind: 'piano', pitches: s.pitches } : { kind: 'strings', instrument: s.instrument.id, fingering: s.fingering.slice(), capos: clone(s.capos) };
 }
 const packVoicing = (r) => (r.kind === 'piano' ? { pitches: r.pitches.slice() } : { fingering: r.fingering.slice() });
@@ -36,7 +38,9 @@ function recompute(delay, flash) {
   if (ses.A.empty) { ses.out = null; ses.pending = false; return; }
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
-  ses.req = { source: src, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  ses.req = { source: src, target: tgt, capos: isPiano(tgt) || isStaff(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
+  // Notation can show any pitches exactly, so a staff target is not translated: it notates the source.
+  if (isStaff(tgt)) { ses.out = { analysis: ses.A, results: [staffResult(src)], flags: [] }; ses.pending = false; ses.card = 0; return; }
   ses.pending = true;
   if (flash) ses.flashNext = true;
   const gen = ses.gen, req = ses.req;
@@ -54,7 +58,7 @@ async function translateNow(gen, req) {
 // Capo suggestions come last: only after the results are on screen and input has been quiet for 600 ms, one
 // setup at a time, abandoned as soon as anything changes.
 function scheduleCapo(gen, req) {
-  if (isPiano(req.target)) return;
+  if (isPiano(req.target) || isStaff(req.target)) return;
   ses.hintT = setTimeout(async () => {
     const trials = E.capoTrials(req, S.capoSetups.filter((c) => c.courses === req.target.courses.length));
     for (const t of trials) {
@@ -98,9 +102,12 @@ function noteStyle(A, pitch, isTop, isBass) {
   return Object.assign({ fn, root: !!(r && r.role === 'root') }, NOTE_STYLE[isTop ? 'top' : isBass ? 'bass' : fn], { shape: NOTE_STYLE[fn].shape });
 }
 const noteColour = (A, pitch, isTop, isBass) => noteStyle(A, pitch, isTop, isBass).fill;
+const BOTH_NAMES = { 1: 'C♯/D♭', 3: 'D♯/E♭', 6: 'F♯/G♭', 8: 'G♯/A♭', 10: 'A♯/B♭' };
 function noteLabel(A, pitch) {
   const r = A && A.roleOfPc ? A.roleOfPc[E.mod12(pitch)] : null;
   if (detailed()) return r ? r.label : '?';
+  // A lone black key, before there is a chord to spell it from, carries both names.
+  if (A && A.pcs && A.pcs.length === 1 && BOTH_NAMES[E.mod12(pitch)]) return BOTH_NAMES[E.mod12(pitch)];
   return r ? r.name : E.pitchName(pitch, A && A.flat).replace(/-?\d+$/, '');
 }
 const visibleFrets = () => (ses.roomy ? 12 : 7);
@@ -251,6 +258,7 @@ function renderSource() {
   const inst = side('src'), A = ses.A, box = $('#srcScroll'), piano = isPiano(inst);
   let iv = '';
   if (detailed() && A && !A.empty) iv = A.notes.map((n, i) => esc(n.nameOct) + (A.intervals[i] ? `<i class="${A.intervals[i].rub ? 'rub' : ''}">${A.intervals[i].short}${A.intervals[i].rub ? ' rub' : ''}</i>` : '')).join('');
+  if (isStaff(inst)) return renderStaffSource(inst, A, iv);
   const capoOn = !piano && S.work.srcCapos.length;
   $('#srcRow').innerHTML = `<span class="rubric srcname">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
     `<button class="iconbtn" data-act="view" data-d="-1" aria-label="${piano ? 'Show lower keys' : 'Show lower frets'}">${ICON.left}</button><button class="iconbtn" data-act="view" data-d="1" aria-label="${piano ? 'Show higher keys' : 'Show higher frets'}">${ICON.right}</button>` +
@@ -268,6 +276,17 @@ function renderSource() {
   }
   box.scrollLeft = ses.fit.src ? chordScroll('src', box, piano ? S.work.piano : srcFing()) : keep;
   ses.fit.src = false;
+  updateMoveButtons();
+}
+function renderStaffSource(inst, A, iv) {
+  $('#srcRow').innerHTML =
+    `<button class="txtbtn accbtn" data-act="staffacc" data-v="1" aria-label="Sharp">♯</button><button class="txtbtn accbtn" data-act="staffacc" data-v="-1" aria-label="Flat">♭</button><button class="txtbtn accbtn" data-act="staffacc" data-v="0" aria-label="Natural">♮</button>` +
+    `<span class="grow staffctl">${staffControls(side('tgt'))}</span>` +
+    `<button class="txtbtn" data-act="octchord" data-d="-1" id="octDown" aria-label="Move the chord down an octave">Oct ↓</button><button class="txtbtn" data-act="octchord" data-d="1" id="octUp" aria-label="Move the chord up an octave">Oct ↑</button><button class="txtbtn" data-act="clear">Clear</button>`;
+  const box = $('#srcScroll');
+  if (box.clientWidth < 20) return;
+  const w = staffSettings().written && side('tgt').writtenOctave ? side('tgt').writtenOctave : 0;
+  drawStaff(box, { id: 'staff-src', pitches: S.work.staff || [], A, status: statusMap(), top: A && A.top ? A.top.pitch : -1, bass: A && A.bass ? A.bass.pitch : -1, written: w });
   updateMoveButtons();
 }
 // Where to scroll so the entered notes are in view: centred on a keyboard, from just below the lowest fret on a
@@ -312,6 +331,7 @@ function flashComp() {
 }
 function resultSVG(res, W, H) {
   const A = ses.A, tgt = side('tgt'), top = res.mains[res.mains.length - 1], bass = res.pitches[0];
+  if (res.kind === 'staff') return `<div class="staffhost" style="height:${H}px"></div>`;
   if (res.kind === 'piano') {
     let lo = res.pitches[0] - 3, hi = res.pitches[res.pitches.length - 1] + 3;
     const want = ses.roomy ? 36 : 24;
@@ -346,6 +366,7 @@ function renderTarget() {
   cards.forEach((res, i) => {
     const picked = ses.picked && ses.picked.key === res.multiKey, fav = S.favourites.some((f) => f.id === favKey(res));
     const pos = res.custom ? 'Yours' : `${i + 1 - (ses.custom ? 1 : 0)} / ${n}`;
+    if (res.kind === 'staff') { h += `<article class="card" aria-label="Notation"><div class="card-body">${resultSVG(res, W, H - 45)}</div><div class="card-row"><span class="rubric">Sounding pitch</span><span class="grow staffctl">${staffControls(side('src'))}</span></div></article>`; return; }
     h += `<article class="card ${picked ? 'picked' : ''}" aria-label="Voicing ${pos}"><div class="card-body">${resultSVG(res, W, H - 45)}</div><div class="card-row">
       <span class="pos">${pos}</span>
       <button class="fig" data-act="why" data-i="${i}" aria-label="Sound score ${fmt(res.score)}. Show why."><span>Score</span> <b>${fmt(res.score)}</b></button>
@@ -354,8 +375,11 @@ function renderTarget() {
       <button class="iconbtn star ${fav ? 'on' : ''}" data-act="star" data-i="${i}" aria-label="${fav ? 'Remove from' : 'Add to'} favourites" aria-pressed="${fav}">${ICON.star}</button>
       <button class="use ${picked ? 'done' : ''}" data-act="use" data-i="${i}"><span>${picked ? 'Chosen' : 'Use this'}</span></button></div></article>`;
   });
-  h += `<article class="card" aria-label="None of these"><div class="none"><h3>None of these</h3><p>Enter the voicing you wanted on the ${esc(tgt.name.toLowerCase())}. It counts double when the app learns your taste.</p><button class="pill primary" data-act="none"><span>Enter my voicing</span></button></div></article></div>`;
+  if (!isStaff(tgt)) h += `<article class="card" aria-label="None of these"><div class="none"><h3>None of these</h3><p>Enter the voicing you wanted on the ${esc(tgt.name.toLowerCase())}. It counts double when the app learns your taste.</p><button class="pill primary" data-act="none"><span>Enter my voicing</span></button></div></article></div>`;
+  if (isStaff(tgt)) h += '</div>';
   box.innerHTML = h;
+  const host = box.querySelector('.staffhost');
+  if (host) { const w = staffSettings().written && side('src').writtenOctave ? side('src').writtenOctave : 0, r = cards[0]; drawStaff(host, { id: 'staff-tgt', pitches: r.pitches, A: ses.A, top: r.mains[r.mains.length - 1], bass: r.pitches[0], written: w }); }
   const el = $('#cards');
   el.scrollLeft = ses.card * W;
   let t = 0;
@@ -396,6 +420,8 @@ function toast(msg, action) {
 
 /* ───────── board taps ───────── */
 function boardTap(id, e, svg) {
+  if (id === 'staff-src') return staffTap(id, e, svg);
+  if (id.startsWith('staff')) return;
   const g = GEO[id], srcSide = id === 'src', inst = side(srcSide ? 'src' : 'tgt');
   if (isPiano(inst)) {
     const key = e.target.closest('[data-p]');
@@ -425,7 +451,8 @@ const ACT = {
   view(el) { ses.view = el.dataset.v; render(); },
   view(el) { const b = $('#srcScroll'), g = GEO.src; b.scrollBy({ left: +el.dataset.d * (g.ww ? g.ww * 7 : g.cw * 5), behavior: 'smooth' }); },
   clear() {
-    if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
+    if (isStaff(side('src'))) { S.work.staff = []; S.work.staffSpell = {}; }
+    else if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
     save(true); recompute(); render();
   },
   async play(el) {
@@ -441,7 +468,7 @@ const ACT = {
     const cur = currentCard(), a = S.settings.src, b = S.settings.tgt;
     S.settings.src = b; S.settings.tgt = a;
     [S.work.srcCapos, S.work.tgtCapos] = [S.work.tgtCapos, S.work.srcCapos];
-    if (cur) { if (cur.kind === 'piano') S.work.piano = cur.pitches.slice(); else S.work.fing[b] = cur.fingering.map((f) => (f < 0 ? null : f)); }
+    if (cur) { if (cur.kind === 'staff') { S.work.staff = cur.pitches.slice(); S.work.staffSpell = {}; } else if (cur.kind === 'piano') S.work.piano = cur.pitches.slice(); else S.work.fing[b] = cur.fingering.map((f) => (f < 0 ? null : f)); }
     ses.fit.src = true; save(); recompute(); render();
   },
   showcomp() { if (ses.out) flashComp(); },
@@ -512,8 +539,8 @@ function usePick(i) {
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (el && !el.disabled) { const fn = ACT[el.dataset.act]; if (fn) fn(el, e); return; }
-  const svg = e.target.closest('svg[data-board]');
-  if (svg && isTap()) boardTap(svg.dataset.board, e, svg);
+  const board = e.target.closest('[data-board]');
+  if (board && isTap()) { const svg = board.tagName.toLowerCase() === 'svg' ? board : board.querySelector('svg'); if (svg) boardTap(board.dataset.board, e, svg); }
 });
 document.addEventListener('change', (e) => { const el = e.target.closest('[data-chg]'); if (el && CHG[el.dataset.chg]) CHG[el.dataset.chg](el); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });

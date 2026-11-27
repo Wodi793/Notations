@@ -63,16 +63,16 @@ const FAMILY = [
   ['Banjo', ['banjo-g', 'banjo-doublec', 'banjo-sawmill', 'tenor-banjo', 'tenor-banjo-irish']],
 ];
 // "E2 A2 D3 G3 B3 E4", low to high; paired courses read "E2+E3"; a short fifth string reads "G4 from fret 5".
-const tuningText = (i) => (isPiano(i) ? 'A0 to C8' : i.courses.map((c) => c.strings.map((st) => E.pitchName(st.pitch)).join('+') + (c.startFret ? ` from fret ${c.startFret}` : '')).join(' '));
+const tuningText = (i) => (isStaff(i) ? 'Written notation, A0 to C8' : isPiano(i) ? 'A0 to C8' : i.courses.map((c) => c.strings.map((st) => E.pitchName(st.pitch)).join('+') + (c.startFret ? ` from fret ${c.startFret}` : '')).join(' '));
 const CHECK = '<svg class="ico check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 function instrList(cur) {
   const q = (ses.instrQuery || '').trim().toLowerCase().replace(/#/g, '♯');
   const hit = (i) => !q || i.name.toLowerCase().includes(q) || tuningText(i).toLowerCase().includes(q);
   const row = (i, extra) => `<div class="row tap irow ${i.id === cur.id ? 'sel' : ''}" data-act="pickinstr" data-id="${i.id}" aria-current="${i.id === cur.id}">
     <span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))}</span></span>
-    ${isPiano(i) ? '' : `<span class="iscale">${i.scaleLengthMm} mm</span>`}${extra || ''}<span class="icheck">${i.id === cur.id ? CHECK : ''}</span></div>`;
+    ${isPiano(i) || isStaff(i) ? '' : `<span class="iscale">${i.scaleLengthMm} mm</span>`}${extra || ''}<span class="icheck">${i.id === cur.id ? CHECK : ''}</span></div>`;
   const group = (title, items, extra) => { const shown = items.filter(Boolean).filter(hit); return shown.length || extra ? sec(title, (extra || '') + shown.map((i) => row(i)).join('')) : ''; };
-  let h = group('Surfaces', [E.PIANO]);
+  let h = group('Surfaces', [E.PIANO, STAFF]);
   for (const [title, ids] of FAMILY) h += group(title, ids.map(preset));
   h += q && !E.TIPLE_TEMPLATES.some(hit) ? '' : sec('Other', '<p class="note">Tiple tunings vary by tradition. Start from the closer one, check every pitch, then save it.</p>' +
     E.TIPLE_TEMPLATES.filter(hit).map((i) => `<div class="row tap irow" data-act="editinstr" data-id="${i.id}"><span class="grow"><span class="iname">${esc(i.name)}</span><span class="ituning">${esc(tuningText(i))} · confirm pitches</span></span>${pill('Check', 'editinstr', `data-id="${i.id}"`)}</div>`).join(''));
@@ -274,7 +274,8 @@ function caseSheet(i) {
     ${sec('Every ranked candidate', `<div class="wrapx"><table class="bd"><tr><th>Voicing</th><th class="n">Default</th><th class="n">Learned</th><th class="n">Diff.</th></tr>${rows}</table></div><p class="note">Ranked with default weights. Difficulty reorders candidates only when their scores are within the tie window, which is why a slightly higher score can sit above a lower one.</p>`)}`;
 }
 function loadWork(src, tgtId, capos) {
-  if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
+  if (src.kind === 'staff') { S.settings.src = 'staff'; S.work.staff = src.pitches.slice(); S.work.staffSpell = {}; }
+  else if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
   else { if (!instr(src.instrument)) return toast('That instrument is no longer saved.'); S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
   if (tgtId && instr(tgtId)) { S.settings.tgt = tgtId; S.work.tgtCapos = clone(capos || []); }
   ses.fit.src = true; save(); recompute(0, true); closeSheet(); render();

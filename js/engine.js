@@ -163,7 +163,7 @@ const Engine = (function () {
     const roleOfPc = {};
     for (const k of Object.keys(I.R)) {
       const iv = +k, pc = mod12(rootPc + iv);
-      roleOfPc[pc] = { role: I.R[k].role, label: I.R[k].label, name: spell(rootName, iv, I.R[k].deg), interval: iv };
+      roleOfPc[pc] = { role: I.R[k].role, label: I.R[k].label, name: spell(rootName, iv, I.R[k].deg), interval: iv, deg: I.R[k].deg };
     }
     const notes = raw.map((n) => {
       const pc = mod12(n.pitch), r = roleOfPc[pc];
@@ -241,6 +241,63 @@ const Engine = (function () {
       s += ` The ${what}, ${r.name}, is in the bass.`;
     }
     return s;
+  }
+
+  // The chord's notes spelled from another name for the same root (G♯ for A♭): pitch class → name.
+  const ENHARMONIC = { 'C♯': 'D♭', 'D♭': 'C♯', 'D♯': 'E♭', 'E♭': 'D♯', 'F♯': 'G♭', 'G♭': 'F♯', 'G♯': 'A♭', 'A♭': 'G♯', 'A♯': 'B♭', 'B♭': 'A♯', 'B': 'C♭', 'C♭': 'B', 'E': 'F♭', 'F': 'E♯', 'C': 'B♯' };
+  function spellChord(A, rootName) {
+    const out = {};
+    for (const pc of A.pcs) { const r = A.roleOfPc[pc]; out[pc] = spell(rootName, r.interval, r.deg); }
+    return out;
+  }
+
+  /* ───────────── 2b. Key prediction ───────────── */
+  // Krumhansl–Kessler key profiles, major and minor, from the tonic up.
+  const KK_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+  const KK_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+  const KEY_MAJOR = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+  const KEY_MINOR = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
+  const keyOf = (tonic, mode) => ({ tonic, mode, name: (mode === 'major' ? KEY_MAJOR : KEY_MINOR)[tonic] + (mode === 'major' ? ' major' : ' minor') });
+  function corr(a, b) {
+    const n = a.length, ma = a.reduce((x, y) => x + y, 0) / n, mb = b.reduce((x, y) => x + y, 0) / n;
+    let sab = 0, saa = 0, sbb = 0;
+    for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) ** 2; sbb += (b[i] - mb) ** 2; }
+    return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+  }
+  // chords: a list of pitch lists (lowest note first is not assumed). Returns the most likely key, a confidence
+  // from 0 to 1, and the next two candidates. One chord: the keys where it is diatonic, preferring it as I, then V, then IV.
+  function predictKey(chords) {
+    const lists = (chords || []).map((c) => (Array.isArray(c) ? c : c.pitches || [])).filter((c) => c.length);
+    if (!lists.length) return null;
+    const w = new Array(12).fill(0);
+    // Each note counts once and each bass note once more. A run usually ends at home, so the last chord counts
+    // double and its bass note gets a further bonus.
+    lists.forEach((ps, i) => {
+      const last = i === lists.length - 1 && lists.length > 1, k = last ? 2 : 1, lo = Math.min(...ps);
+      for (const p of ps) w[mod12(p)] += k;
+      w[mod12(lo)] += last ? 3 : 1;
+    });
+    const all = [];
+    for (let t = 0; t < 12; t++) for (const [mode, prof] of [['major', KK_MAJOR], ['minor', KK_MINOR]]) {
+      const rot = prof.map((_, i) => prof[mod12(i - t)]);
+      all.push({ key: keyOf(t, mode), r: corr(w, rot) });
+    }
+    if (lists.length === 1) {
+      const A = analyze(lists[0]), pcs = A.pcs;
+      const MAJ = [0, 2, 4, 5, 7, 9, 11], MIN = [0, 2, 3, 5, 7, 8, 10, 11];
+      for (const c of all) {
+        const scale = (c.key.mode === 'major' ? MAJ : MIN).map((i) => mod12(c.key.tonic + i));
+        const diatonic = pcs.every((pc) => scale.includes(pc));
+        const deg = mod12(A.rootPc - c.key.tonic);
+        c.pref = !diatonic ? 0 : deg === 0 ? 4 : deg === 7 ? 3 : deg === 5 ? 2 : 1;
+      }
+      all.sort((a, b) => b.pref - a.pref || b.r - a.r || a.key.tonic - b.key.tonic);
+      const conf = all[0].pref >= 4 && all[1].pref < 4 ? 0.5 : 0.3;
+      return { key: all[0].key, confidence: conf, alternatives: [all[1].key, all[2].key] };
+    }
+    all.sort((a, b) => b.r - a.r || a.key.tonic - b.key.tonic);
+    const conf = Math.max(0, Math.min(1, (all[0].r - all[1].r) / 0.15)) * Math.max(0, Math.min(1, all[0].r / 0.75));
+    return { key: all[0].key, confidence: r2(conf), alternatives: [all[1].key, all[2].key] };
   }
 
   /* ───────────── 3. Instruments, presets, capos ───────────── */
@@ -973,7 +1030,7 @@ const Engine = (function () {
 
   /* ───────────── 11. Learning from picks (weight nudging, not machine learning) ───────────── */
   function traits(instr) {
-    if (!instr || instr.kind === 'piano') return { piano: true };
+    if (!instr || instr.kind === 'piano' || !instr.courses) return { piano: true };
     const mains = instr.courses.map(mainOf), n = mains.length;
     let reentrant = false;
     for (let i = 1; i < n; i++) if (mains[i] < mains[i - 1]) reentrant = true;
@@ -1093,7 +1150,7 @@ const Engine = (function () {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
     analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
-    traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
+    spellChord, ENHARMONIC, predictKey, traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,
   };
 })();

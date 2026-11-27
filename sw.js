@@ -1,11 +1,11 @@
 /* Offline support for the Home Screen app. Caches the app shell under a versioned name; tools/build-artifact.js
    stamps VERSION from the files' contents, so any change to the app produces a new cache and an update offer. */
-const VERSION = '54087efcaf';
+const VERSION = 'f0dcea5fbf';
 const CACHE = 'notations-' + VERSION;
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/engine.js', 'js/engine-worker.js', 'js/engine-client.js', 'js/util.js', 'js/storage.js', 'js/sound.js', 'js/app.js', 'js/sheets.js', 'js/space.js', 'js/boot.js',
-  'tests/lab-cases.json', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon-32.png',
+  'js/engine.js', 'js/engine-worker.js', 'js/engine-client.js', 'js/util.js', 'js/storage.js', 'js/sound.js', 'js/app.js', 'js/sheets.js', 'js/staff.js', 'js/space.js', 'js/boot.js',
+  'tests/lab-cases.json', 'vendor/vexflow-5.0.0/vexflow-bravura.js', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon-32.png',
 ];
 const FONTS = 'notations-fonts';
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); });
