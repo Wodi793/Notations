@@ -193,6 +193,9 @@ table.bd tr.hit td:first-child { color: var(--accent); }
 @media (max-width: 599px) { .short { display: inline; } }
 label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 .buildtag { font-family: var(--sans); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; vertical-align: 3px; margin-left: 6px; }
+/* While a new translation is on its way, the previous cards dim and stop taking taps. */
+.strip-body.busy { opacity: .45; pointer-events: none; transition: opacity .2s var(--ease) .08s; }
+.strip-body { transition: opacity .15s var(--ease); }
 </style>
 
 <div id="app" class="roomy">
@@ -254,7 +257,43 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 <div class="toast" id="toast" role="status"></div>
 
 <script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = [{"id":"s01","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"mandolin","accept":[[5,2,3,3],[0,2,3,3],[-1,2,3,3]],"note":"G should stay on top. The usual shapes put it on the E course."},{"id":"s02","name":"Cmaj7, B on top","source":{"kind":"piano","notes":"C4 E4 G4 B4"},"target":"mandolin","accept":[[5,2,2,-1],[5,5,7,7],[0,2,2,-1]],"note":"Root, 3rd and 7th with B on top, or the four-course shape an octave up."},{"id":"s03","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"mandolin","accept":[[0,0,2,1],[0,3,2,1]],"note":"The open G7. F has to move up an octave."},{"id":"s04","name":"D7♯9","source":{"kind":"piano","notes":"D3 F#3 C4 F4"},"target":"mandolin","accept":[[7,4,3,1],[-1,4,3,1]],"note":"The whole voicing an octave up, or 3, ♭7, ♯9 without the root."},{"id":"s05","name":"Am7, 9th on top","source":{"kind":"piano","notes":"A3 C4 E4 G4 B4"},"target":"mandolin","accept":[[5,5,2,-1],[2,5,3,7],[5,5,7,7]],"note":"Five notes on four courses: the root or the 5th has to go, the 9th stays."},{"id":"s06","name":"F/A","source":{"kind":"piano","notes":"A3 C4 F4"},"target":"mandolin","accept":[[2,3,3,1],[2,3,3,-1],[2,3,0,1]],"note":"A on the bottom comes first."},{"id":"s07","name":"C/E","source":{"kind":"piano","notes":"E4 G4 C5"},"target":"mandolin","accept":[[9,5,3,-1]],"note":"Playable at pitch."},{"id":"s08","name":"F triad, C on top","source":{"kind":"piano","notes":"F4 A4 C5"},"target":"uke","accept":[[2,0,1,3],[2,-1,1,3],[5,5,5,3]],"note":"The everyday F with a high C. The open C string sits below the source."},{"id":"s09","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"uke","accept":[[0,0,0,-1],[0,0,0,3]],"note":"Three open strings give the exact pitches."},{"id":"s10","name":"G7","source":{"kind":"piano","notes":"G3 B3 D4 F4"},"target":"uke-lowg","accept":[[0,2,1,2]],"note":"The standard G7 shape, low G on the bottom. It puts B on top, not F."},{"id":"s11","name":"Open G","source":{"kind":"strings","instrument":"guitar","fingering":[3,2,0,0,0,3]},"target":"mandolin","accept":[[0,0,2,3],[7,5,2,3]],"note":"Open G, or the chop shape."},{"id":"s12","name":"E7 shape","source":{"kind":"strings","instrument":"guitar","fingering":[0,2,0,1,0,0]},"target":"mandolin","accept":[[1,0,2,0]],"note":"The standard mandolin E7. G♯ ends up on the bottom."},{"id":"s13","name":"Open Cadd9","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,3,3]},"target":"mandolin","accept":[[5,2,5,3],[0,2,5,3]],"note":"Root, 3rd, 9th, 5th with G on top."},{"id":"s14","name":"DADGAD Dsus4, all open","source":{"kind":"strings","instrument":"guitar-dadgad","fingering":[0,0,0,0,0,0]},"target":"mandolin","accept":[[7,5,0,-1],[7,5,5,-1],[7,5,0,10]],"note":"The G-against-A rub and the D on top pull against each other."},{"id":"s15","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"guitar","accept":[[-1,-1,12,12,12,15],[-1,-1,0,0,0,3],[3,2,0,0,0,3]],"note":"At pitch up the neck, or the same shape an octave down."},{"id":"s16","name":"A minor","source":{"kind":"strings","instrument":"mandolin","fingering":[2,2,3,0]},"target":"guitar","accept":[[-1,0,2,2,1,0],[-1,-1,2,2,1,0]],"note":"A guitarist would play open Am, an octave down."},{"id":"s17","name":"Close G triad","source":{"kind":"piano","notes":"G3 B3 D4"},"target":"banjo-g","accept":[[-1,-1,0,0,0],[-1,0,0,0,0],[0,0,0,0,0]],"note":"Open strings. The 5th-string drone sits above the source top."},{"id":"s18","name":"Close C triad","source":{"kind":"piano","notes":"C4 E4 G4"},"target":"banjo-g","accept":[[-1,-1,5,5,5],[0,-1,5,5,5],[0,2,0,1,2]],"note":"The barre at 5, or the open C shape with the drone on top."},{"id":"s19","name":"A, capo at 2","source":{"kind":"piano","notes":"A3 C#4 E4 A4"},"target":"guitar","capoFret":2,"accept":[[5,4,0,0,0,5],[-1,-1,7,6,5,5],[-1,-1,0,0,0,5]],"note":"G shape over the capo, or the barre at 5."},{"id":"s20","name":"Open C","source":{"kind":"strings","instrument":"guitar","fingering":[-1,3,2,0,1,0]},"target":"piano","acceptNotes":["C3 E3 G3 C4 E4"],"note":"The piano can play the exact pitches. This case only proves the path works."},{"id":"s21","name":"G chop chord","source":{"kind":"strings","instrument":"mandolin","fingering":[7,5,2,3]},"target":"piano","acceptNotes":["D4 G4 B4 G5"],"note":"Exact pitches again. This case only proves the path works."}];</script>
-<script>
+<script type="text/plain" id="worker-src">
+/* ENGINE WORKER — runs the engine off the screen's thread. Each request carries an id; the page drops answers
+   to requests it has moved past. In the artifact build this file is joined to the engine's source in a blob. */
+if (typeof Engine === 'undefined') importScripts('engine.js');
+const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+const OPS = {
+  ping: () => 'pong',
+  translate: (req) => Engine.translate(req),
+  // Only what the capo verdict needs, so little has to be copied back.
+  translateTop: (req) => { const r = Engine.translate(req).results[0]; return r ? { score: r.score, bassTier: r.bassTier } : null; },
+  sameNotes: (req) => Engine.sameNotes(req),
+  // The Lab: every case, plus timings measured on this device.
+  lab: ({ tests, instruments, weights, timing }) => {
+    const byId = new Map(instruments.map((i) => [i.id, i]));
+    const find = (id) => (id === 'piano' ? Engine.PIANO : byId.get(id));
+    const rows = tests.map((tc) => Engine.runTest(tc, find, weights || {}, {}));
+    let times = null;
+    if (timing) {
+      const tr = [], cp = [];
+      for (const tc of tests) {
+        const target = find(tc.target), source = Engine.resolveSource(tc.source, find);
+        if (!target || (source.kind === 'strings' && !source.instrument)) continue;
+        const req = { source, target, capos: tc.capos || [] };
+        let t = performance.now(); Engine.translate(req); tr.push(performance.now() - t);
+        if (target.kind !== 'piano') { t = performance.now(); Engine.suggestCapo(req); cp.push(performance.now() - t); }
+      }
+      times = { translate: { median: median(tr), slowest: Math.max(0, ...tr) }, capo: { median: median(cp), slowest: Math.max(0, ...cp) }, cases: tr.length };
+    }
+    return { rows, times };
+  },
+};
+self.onmessage = (e) => {
+  const { id, op, arg } = e.data;
+  try { self.postMessage({ id, ok: true, value: OPS[op](arg) }); } catch (err) { self.postMessage({ id, ok: false, error: String(err && err.message || err) }); }
+};
+</script>
+<script id="engine-src">
 /* js/engine.js */
 /* ENGINE — Notations chord-voicing translator.
    Pure functions only: no DOM, no storage, no clock, no randomness.
@@ -781,46 +820,78 @@ const Engine = (function () {
   /* ───────────── 6. Listing fingerings ───────────── */
   // Every playable fingering that uses only the source's pitch classes,
   // searched by hand position (the lowest fretted fret).
-  function enumerate(P, A, opt, minSound, need) {
-    const out = [], n = P.n, sel = new Array(n).fill(-1), mask = A.pcMask;
+  // visit(sel) is called for each playable fingering, with a scratch array it must copy if it keeps it.
+  function enumerate(P, A, opt, minSound, need, visit) {
+    const n = P.n, sel = new Array(n).fill(-1), mask = A.pcMask;
+    let count = 0;
     const openOk = P.open.map((o) => (o.pcm & ~mask) === 0);
     let p = 0, hi = 0;
-    const leaf = () => {
-      let runs = 0, inRun = false, above = 0;
-      if (p > 0) for (let c = 0; c < n; c++) {
-        const f = sel[c];
-        if (f > p) above++;
-        if (f === p) { if (!inRun) { runs++; inRun = true; } }
-        else if (f === 0) inRun = false;
-      }
-      if (above + runs > 4) return;
-      out.push(sel.slice());
-    };
-    // need: pitch classes every candidate must hold; a branch dies once too few courses remain to supply them
-    const dfs = (c, above, atP, sound, got) => {
+    // canP[c]: some course from c onwards can be fretted at p. A branch that has not yet placed a finger at p
+    // and can no longer do so would be rejected at its end, so it is dropped now.
+    const canP = new Uint8Array(n + 1);
+    // above: fingers above the lowest fret; runs: barre runs at the lowest fret (an open course breaks a run).
+    // Both only grow along a branch, so a branch past four fingers is dropped as soon as it gets there.
+    const dfs = (c, above, atP, sound, got, runs, inRun) => {
       if (sound + (n - c) < minSound) return;
       if (need) { const miss = need & ~got; if (miss && POP[miss] > n - c) return; }
-      if (c === n) { if (p === 0 || atP > 0) leaf(); return; }
-      sel[c] = -1; dfs(c + 1, above, atP, sound, got);
-      if (openOk[c]) { sel[c] = 0; dfs(c + 1, above, atP, sound + 1, got | P.open[c].pcm); }
+      if (p > 0 && atP === 0 && !canP[c]) return;
+      if (c === n) { count++; visit(sel); return; }
+      sel[c] = -1; dfs(c + 1, above, atP, sound, got, runs, inRun);
+      if (openOk[c]) { sel[c] = 0; dfs(c + 1, above, atP, sound + 1, got | P.open[c].pcm, runs, false); }
       if (p > 0) {
         const row = P.fret[c], col = P.collide[c];
         for (let f = p; f <= hi; f++) {
           const o = row[f];
           if (!o || (o.pcm & ~mask) !== 0 || col[f]) continue;
-          if (f === p) { if (above + 1 > 4) continue; sel[c] = f; dfs(c + 1, above, atP + 1, sound + 1, got | o.pcm); }
-          else { if (above + 1 + (atP > 0 ? 1 : 0) > 4) continue; sel[c] = f; dfs(c + 1, above + 1, atP, sound + 1, got | o.pcm); }
+          if (f === p) {
+            const r = inRun ? runs : runs + 1;
+            if (above + r > 4) continue;
+            sel[c] = f; dfs(c + 1, above, atP + 1, sound + 1, got | o.pcm, r, true);
+          } else {
+            if (above + 1 + runs > 4) continue;
+            sel[c] = f; dfs(c + 1, above + 1, atP, sound + 1, got | o.pcm, runs, inRun);
+          }
         }
       }
       sel[c] = -1;
     };
-    dfs(0, 0, 0, 0, 0);
+    dfs(0, 0, 0, 0, 0, 0, false);
     for (p = 1; p <= P.fretCount; p++) {
       hi = p;
       while (hi + 1 <= P.fretCount && P.pos[hi + 1] - P.pos[p] <= opt.impossibleMm) hi++;
-      dfs(0, 0, 0, 0, 0);
+      canP[n] = 0;
+      for (let c = n - 1; c >= 0; c--) { const o = P.fret[c][p]; canP[c] = canP[c + 1] || (o && (o.pcm & ~mask) === 0 && !P.collide[c][p]) ? 1 : 0; }
+      dfs(0, 0, 0, 0, 0, 0, false);
     }
-    return out;
+    return count;
+  }
+
+  // The same voicing voicingOf builds, written into reusable arrays: used while scoring every candidate, so the
+  // search allocates nothing per fingering. Only candidates that can still reach the results become objects.
+  function scratchVoicing() { return { mains: [], all: null, multi: [], dedup: [], octs: [], mask: 0, pos: 0 }; }
+  function voicingInto(P, fr, V) {
+    const mains = V.mains, multi = V.multi, octs = V.octs;
+    mains.length = 0; multi.length = 0; octs.length = 0;
+    let mask = 0, pos = 0;
+    for (let c = 0; c < P.n; c++) {
+      const f = fr[c];
+      if (f < 0) continue;
+      if (f > 0 && (pos === 0 || f < pos)) pos = f;
+      const o = f === 0 ? P.open[c] : P.fret[c][f];
+      if (!o) continue;
+      insert(mains, o.main); mask |= o.pcm;
+      const ps = o.pitches;
+      for (let i = 0; i < ps.length; i++) insert(multi, ps[i]);
+      for (let i = 0; i < o.octs.length; i++) octs.push(o.octs[i]);
+    }
+    let all = multi;
+    for (let i = 1; i < multi.length; i++) if (multi[i] === multi[i - 1]) {
+      const d = V.dedup; d.length = 0;
+      for (let k = 0; k < multi.length; k++) if (k === 0 || multi[k] !== multi[k - 1]) d.push(multi[k]);
+      all = d; break;
+    }
+    V.all = all; V.mask = mask; V.pos = pos;
+    return V;
   }
   const POP = new Uint8Array(4096);
   for (let i = 1; i < 4096; i++) POP[i] = POP[i >> 1] + (i & 1);
@@ -960,16 +1031,37 @@ const Engine = (function () {
     const P = prepare(req.target, req.capos);
     let need = 0;
     for (const pc of A.definingPcs) need |= 1 << pc;
-    let minSound = Math.min(3, A.pcs.length, P.n), raw = [], relaxed = false;
-    for (; minSound >= 1 && !raw.length; minSound--) {
-      raw = enumerate(P, A, opt, minSound, need);
-      if (!raw.length && need) { raw = enumerate(P, A, opt, minSound, 0); relaxed = raw.length > 0; }
+    // Score every playable fingering into flat arrays: fingerings, scores and bass tiers.
+    const n = P.n, frs = [], scores = [], tiers = [], SV = scratchVoicing();
+    const visit = (sel) => {
+      for (let c = 0; c < n; c++) frs.push(sel[c]);
+      voicingInto(P, sel, SV);
+      scores.push(scoreVoicing(A, SV, W, false).score); tiers.push(tierOf(A, SV));
+    };
+    let minSound = Math.min(3, A.pcs.length, P.n), found = 0, relaxed = false;
+    for (; minSound >= 1 && !found; minSound--) {
+      found = enumerate(P, A, opt, minSound, need, visit);
+      if (!found && need) { found = enumerate(P, A, opt, minSound, 0, visit); relaxed = found > 0; }
     }
     if (relaxed) flags.push({ code: 'definingRelaxed', text: 'No playable shape keeps every defining tone, so that rule was relaxed.' });
-    const cands = new Array(raw.length);
-    for (let i = 0; i < raw.length; i++) {
-      const fr = raw[i], V = voicingOf(P, fr);
-      cands[i] = { fr, V, score: scoreVoicing(A, V, W, false).score, tier: tierOf(A, V), diff: -1, multiKey: null, pos: 0 };
+    const frAt = (i) => frs.slice(i * n, i * n + n);
+    // Ranking key: the score, plus difficulty when "prefer easier" is on.
+    const keys = new Float64Array(found);
+    if (opt.preferEasier) for (let i = 0; i < found; i++) keys[i] = scores[i] + W.easeWeight * difficultyOf(P, frAt(i), opt, false).value;
+    else for (let i = 0; i < found; i++) keys[i] = scores[i];
+    // Past 3,000 candidates, only those within the tie window of the best 1,501 can reach the results.
+    let thr = Infinity;
+    if (found > 3000) {
+      const ks = new Float64Array(found);
+      for (let i = 0; i < found; i++) ks[i] = tiers[i] * 1e6 + keys[i];
+      ks.sort();
+      thr = ks[1500] + W.tieWindow;
+    }
+    const cands = [];
+    for (let i = 0; i < found; i++) {
+      if (tiers[i] * 1e6 + keys[i] > thr) continue;
+      const fr = frAt(i);
+      cands.push({ fr, V: voicingOf(P, fr), score: scores[i], tier: tiers[i], key: keys[i], diff: -1, multiKey: null, pos: 0 });
     }
     const prep = (c) => {
       if (c.multiKey) return;
@@ -978,14 +1070,17 @@ const Engine = (function () {
       let lo = 0; for (const f of c.fr) if (f > 0 && (lo === 0 || f < lo)) lo = f;
       c.pos = lo;
     };
-    const list = rankAll(cands, W, opt, prep);
+    for (let i = 0; i < cands.length; i++) prep(cands[i]);
+    cands.sort((a, b) => a.tier - b.tier || a.key - b.key || a.diff - b.diff || cmpFr(a.fr, b.fr));
+    const seen = new Set(), list = [];
+    for (const c of cands) { if (seen.has(c.multiKey)) continue; seen.add(c.multiKey); list.push(c); if (list.length >= 400) break; }
     const results = pickOrdered(list, W, opt.maxResults, true).map((c) => finishStrings(P, A, W, opt, c));
     if (A.isSlash && results.length) {
       if (results[0].bassTier === 2) flags.push({ code: 'bassInside', text: `${A.bass.name} can't sit on the bottom here, so it is kept inside the chord.` });
       if (results[0].bassTier === 3) flags.push({ code: 'needsBass', text: 'This one needs a bass instrument or a second player.' });
     }
     const ranked = opt.ranked ? pickOrdered(list, W, opt.ranked, false).map((c) => finishStrings(P, A, W, opt, c)) : [];
-    return { analysis: A, results, flags, ranked, considered: cands.length };
+    return { analysis: A, results, flags, ranked, considered: found };
   }
 
   // Score one given fingering (Bill's own, or a test's expected answer), even if it breaks a hard rule.
@@ -1105,19 +1200,67 @@ const Engine = (function () {
   function suggestCapo(req, setups) {
     if (!req.target || req.target.kind === 'piano') return null;
     const base = translate(req);
-    if (!base.results.length || base.results[0].score <= 0) return null;
-    const baseScore = base.results[0].score, cur = JSON.stringify(req.capos || []);
+    const trials = capoTrials(req, setups);
+    for (const t of trials) { const r = translate(Object.assign({}, req, { capos: t.capos })); t.top = r.results[0] || null; }
+    return capoVerdict(base.results[0] || null, trials);
+  }
+  // The capo setups worth trying, in the order they are judged: common shapes first, then Bill's saved setups.
+  // The app runs these one at a time so the search can be stopped between them.
+  function capoTrials(req, setups) {
+    if (!req.target || req.target.kind === 'piano') return [];
+    const cur = JSON.stringify(req.capos || []), out = [];
+    for (const s of capoShapes(req.target)) if (JSON.stringify(s.capos) !== cur) out.push({ label: s.label, capos: s.capos });
+    for (const s of setups || []) if (JSON.stringify(s.capos) !== cur) out.push({ label: `your “${s.name}” setup`, capos: s.capos });
+    return out;
+  }
+  // baseTop: the top result without the change; trials: capoTrials, each with .top set to its top result (or null).
+  function capoVerdict(baseTop, trials) {
+    if (!baseTop || baseTop.score <= 0) return null;
+    const baseScore = baseTop.score;
     let best = null;
-    const tryOne = (label, capos) => {
-      if (JSON.stringify(capos) === cur) return;
-      const t = translate(Object.assign({}, req, { capos }));
-      if (!t.results.length || t.results[0].bassTier > base.results[0].bassTier) return;
-      const gain = (baseScore - t.results[0].score) / baseScore;
-      if (gain >= 0.15 && (!best || gain > best.gain)) best = { label, capos, gain: r2(gain), from: baseScore, to: t.results[0].score };
-    };
-    for (const s of capoShapes(req.target)) tryOne(s.label, s.capos);
-    for (const s of setups || []) tryOne(`your “${s.name}” setup`, s.capos);
+    for (const t of trials) {
+      if (!t.top || t.top.bassTier > baseTop.bassTier) continue;
+      const gain = (baseScore - t.top.score) / baseScore;
+      if (gain >= 0.15 && (!best || gain > best.gain)) best = { label: t.label, capos: t.capos, gain: r2(gain), from: baseScore, to: t.top.score };
+    }
     return best;
+  }
+
+  /* ───────────── 10b. Same notes, other fingerings ───────────── */
+  // Every playable fingering on the same instrument and capos that sounds exactly the same pitches as the given
+  // one, the given fingering left out. Ordered by hand position, then difficulty.
+  function sameNotes(req) {
+    const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    const P = prepare(req.target, req.capos), n = P.n;
+    const given = req.fingering.map((f) => (f == null || f < 0 ? -1 : f));
+    const V0 = voicingOf(P, given), want = new Map();
+    for (const p of V0.mains) want.set(p, (want.get(p) || 0) + 1);
+    const key0 = V0.multi.join(','), out = [], sel = new Array(n).fill(-1);
+    let left = V0.mains.length;
+    const take = (p) => { const k = want.get(p) || 0; if (!k) return false; want.set(p, k - 1); left--; return true; };
+    const give = (p) => { want.set(p, want.get(p) + 1); left++; };
+    const dfs = (c) => {
+      if (left > n - c) return;
+      if (c === n) {
+        if (left) return;
+        const fr = sel.slice(), h = handShape(P, fr);
+        if (h.fingers > 4 || h.span > opt.impossibleMm || cmpFr(fr, given) === 0) return;
+        if (voicingOf(P, fr).multi.join(',') !== key0) return;
+        out.push({ fingering: fr, text: fr.map((f) => (f < 0 ? 'x' : f)).join('-'), position: h.lo, difficulty: difficultyOf(P, fr, opt, false).value });
+        return;
+      }
+      sel[c] = -1; dfs(c + 1);
+      if (take(P.open[c].main)) { sel[c] = 0; dfs(c + 1); give(P.open[c].main); }
+      for (let f = P.minEff[c] + 1; f <= P.fretCount; f++) {
+        const o = P.fret[c][f];
+        if (!o || P.collide[c][f] || !take(o.main)) continue;
+        sel[c] = f; dfs(c + 1); give(o.main);
+      }
+      sel[c] = -1;
+    };
+    if (left) dfs(0);
+    out.sort((a, b) => a.position - b.position || a.difficulty - b.difficulty || cmpFr(a.fingering, b.fingering));
+    return out;
   }
 
   /* ───────────── 11. Learning from picks (weight nudging, not machine learning) ───────────── */
@@ -1240,7 +1383,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,
@@ -1266,6 +1409,57 @@ const ICON = {
   right: '<svg class="ico" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg>',
 };
 
+</script>
+<script>
+/* js/engine-client.js */
+/* ENGINE CLIENT — asks the worker. If no worker can start (some sandboxes block them), the same calls run on the
+   page's thread, each after a pause that lets the screen draw first. */
+const Eng = {
+  worker: null, ready: false, seq: 0, pending: new Map(), mode: 'starting',
+  start() {
+    try {
+      if (BUILD === 'artifact') {
+        const src = document.getElementById('engine-src').textContent + '\n' + document.getElementById('worker-src').textContent;
+        this.worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      } else this.worker = new Worker('js/engine-worker.js');
+      this.worker.onmessage = (e) => this.answer(e.data);
+      this.worker.onerror = () => this.fallback();
+      const t = setTimeout(() => this.fallback(), 2500);
+      this.send('ping').then(() => { clearTimeout(t); if (this.mode === 'starting') { this.mode = 'worker'; this.ready = true; } });
+    } catch (e) { this.fallback(); }
+  },
+  fallback() {
+    if (this.mode === 'main') return;
+    this.mode = 'main';
+    if (this.worker) { try { this.worker.terminate(); } catch (e) { /* already gone */ } }
+    this.worker = null;
+    const waiting = [...this.pending.values()]; this.pending.clear();
+    for (const p of waiting) if (p.op !== 'ping') this.local(p.op, p.arg).then(p.resolve, p.reject);
+  },
+  answer(d) { const p = this.pending.get(d.id); if (!p) return; this.pending.delete(d.id); d.ok ? p.resolve(d.value) : p.reject(new Error(d.error)); },
+  send(op, arg) {
+    return new Promise((resolve, reject) => {
+      const id = ++this.seq;
+      this.pending.set(id, { op, arg, resolve, reject });
+      this.worker.postMessage({ id, op, arg });
+    });
+  },
+  local(op, arg) {
+    return new Promise((resolve, reject) => setTimeout(() => {
+      try {
+        if (op === 'translate') resolve(E.translate(arg));
+        else if (op === 'translateTop') { const r = E.translate(arg).results[0]; resolve(r ? { score: r.score, bassTier: r.bassTier } : null); }
+        else if (op === 'sameNotes') resolve(E.sameNotes(arg));
+        else if (op === 'lab') {
+          const byId = new Map(arg.instruments.map((i) => [i.id, i])), find = (id) => (id === 'piano' ? E.PIANO : byId.get(id));
+          resolve({ rows: arg.tests.map((tc) => E.runTest(tc, find, arg.weights || {}, {})), times: null });
+        } else resolve(null);
+      } catch (e) { reject(e); }
+    }, 16));
+  },
+  call(op, arg) { return this.worker ? this.send(op, arg) : this.local(op, arg); },
+};
+Eng.start();
 </script>
 <script>
 /* js/storage.js */
@@ -1480,7 +1674,7 @@ function eventsOf(inst, capos, voicing) {
 /* js/app.js */
 /* APP — the main screen: what is entered, what the engine returns, and drawing it. Everything musical is decided by Engine. */
 /* ───────── session ───────── */
-const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false };
+const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false, gen: 0, pending: false, trT: 0, flashNext: false };
 const GEO = {};
 const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
 const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
@@ -1506,23 +1700,47 @@ const packVoicing = (r) => (r.kind === 'piano' ? { pitches: r.pitches.slice() } 
 const allCards = () => (ses.out ? [...(ses.custom ? [ses.custom] : []), ...ses.out.results] : []);
 const currentCard = () => allCards()[ses.card] || null;
 
-function recompute() {
+// The chord is analysed at once (it is cheap), so the source colours and the name update in the same frame as the
+// tap. The translation runs in the engine worker after the input settles; a newer input makes older answers stale.
+function recompute(delay, flash) {
   const src = currentSource(), tgt = side('tgt');
-  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, card: 0, editing: null, out: null });
-  clearTimeout(ses.hintT);
-  if (ses.A.empty) return;
+  ses.gen++;
+  clearTimeout(ses.trT); clearTimeout(ses.hintT);
+  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, editing: null });
+  if (ses.A.empty) { ses.out = null; ses.pending = false; return; }
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
-  ses.out = E.translate(ses.req);
-  if (!isPiano(tgt)) {
-    const req = ses.req;
-    ses.hintT = setTimeout(() => {
-      const h = E.suggestCapo(req, S.capoSetups.filter((c) => c.courses === tgt.courses.length));
-      if (h && ses.req === req) { ses.capoHint = h; renderBridge(); }
-    }, 350);
-  }
+  ses.pending = true;
+  if (flash) ses.flashNext = true;
+  const gen = ses.gen, req = ses.req;
+  ses.trT = setTimeout(() => translateNow(gen, req), delay || 0);
 }
+async function translateNow(gen, req) {
+  let out;
+  try { out = await Eng.call('translate', req); } catch (e) { out = E.translate(req); }
+  if (gen !== ses.gen) return;
+  ses.out = out; ses.pending = false; ses.card = 0;
+  renderSource(); renderBridge(); renderTarget();
+  if (ses.flashNext) { ses.flashNext = false; flashComp(); }
+  scheduleCapo(gen, req);
+}
+// Capo suggestions come last: only after the results are on screen and input has been quiet for 600 ms, one
+// setup at a time, abandoned as soon as anything changes.
+function scheduleCapo(gen, req) {
+  if (isPiano(req.target)) return;
+  ses.hintT = setTimeout(async () => {
+    const trials = E.capoTrials(req, S.capoSetups.filter((c) => c.courses === req.target.courses.length));
+    for (const t of trials) {
+      if (gen !== ses.gen) return;
+      try { t.top = await Eng.call('translateTop', Object.assign({}, req, { capos: t.capos })); } catch (e) { return; }
+    }
+    if (gen !== ses.gen || !ses.out) return;
+    const h = E.capoVerdict(ses.out.results[0] || null, trials);
+    if (h) { ses.capoHint = h; renderBridge(); }
+  }, 600);
+}
+function markBusy() { const b = $('#tgtBody'); if (b) b.classList.toggle('busy', !!ses.pending); }
 
 /* ───────── drawing ───────── */
 function noteColour(A, pitch, isTop, isBass) {
@@ -1653,7 +1871,7 @@ function render() {
   renderSource(); renderBridge(); renderTarget();
 }
 function statusMap() {
-  const c = currentCard(), m = {};
+  const c = ses.pending ? null : currentCard(), m = {};
   if (c && !ses.editing) for (const x of c.compromise.sourceMap) m[x.pitch] = x.status === 'kept' ? null : x.status;
   return m;
 }
@@ -1680,7 +1898,7 @@ function renderSource() {
   }
 }
 function compText() {
-  const c = currentCard();
+  const c = ses.pending ? null : currentCard();
   if (!c) return '';
   const extra = [...c.flags.map((f) => f.text), ...(ses.out.flags || []).filter((f) => f.code === 'bassInside').map((f) => f.text)];
   return esc([c.compromise.text, ...new Set(extra)].join(' '));
@@ -1725,6 +1943,7 @@ function resultSVG(res, W, H) {
 const favKey = (res) => S.settings.tgt + '|' + JSON.stringify(isPiano(side('tgt')) ? [] : S.work.tgtCapos) + '|' + res.text;
 function renderTarget() {
   const box = $('#tgtBody'), tgt = side('tgt'), W = box.clientWidth, H = box.clientHeight;
+  markBusy();
   if (W < 20 || H < 20) return;
   if (ses.editing) {
     box.innerHTML = `<div class="card" style="height:100%"><div class="card-body"><div class="scroll" id="editScroll"></div></div><div class="card-row"><span class="rubric grow">Your voicing · ${esc(tgt.name)}</span><button class="txtbtn" data-act="editcancel">Cancel</button><button class="use" data-act="editsave"><span>Save</span></button></div></div>`;
@@ -1732,7 +1951,7 @@ function renderTarget() {
     return;
   }
   if (!ses.out || !ses.out.results.length) {
-    box.innerHTML = `<div class="none"><p class="rubric">Translation · ${esc(tgt.name)}</p><p>${ses.A && !ses.A.empty ? 'No playable voicing found.' : 'The closest playable voicings will appear here.'}</p></div>`;
+    box.innerHTML = `<div class="none"><p class="rubric">Translation · ${esc(tgt.name)}</p><p>${ses.pending ? 'Finding voicings…' : ses.A && !ses.A.empty ? 'No playable voicing found.' : 'The closest playable voicings will appear here.'}</p></div>`;
     return;
   }
   const cards = allCards(), n = ses.out.results.length;
@@ -1809,7 +2028,7 @@ function boardTap(id, e, svg) {
       fing[c] = fing[c] === f ? null : f;
     }
   }
-  if (srcSide) { save(true); recompute(); render(); if (ses.out) flashComp(); } else drawEditor();
+  if (srcSide) { save(true); recompute(60, true); renderSource(); renderBridge(); markBusy(); } else drawEditor();
 }
 
 /* ───────── actions ───────── */
@@ -1838,7 +2057,7 @@ const ACT = {
     ses.kbInit = false; save(); recompute(); render();
   },
   showcomp() { if (ses.out) flashComp(); },
-  applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(); render(); flashComp(); toast('Capo applied. Remove it from the target instrument sheet.'); },
+  applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(0, true); render(); toast('Capo applied. Remove it from the target instrument sheet.'); },
   why(el) { openWhy(+el.dataset.i); },
   star(el) {
     const res = allCards()[+el.dataset.i]; if (!res) return;
@@ -2094,9 +2313,19 @@ function openWhy(i) {
 }
 
 /* lab */
-function labRun() { ses.lab = S.tests.map((tc) => ({ tc, r: E.runTest(tc, instr, {}, {}) })); }
+// The Lab runs in the engine worker, with default weights, and times the engine on this device.
+async function labRun() {
+  ses.lab = null;
+  const tests = S.tests.slice(), ids = new Set();
+  for (const tc of tests) { ids.add(tc.target); if (tc.source.instrument) ids.add(tc.source.instrument); }
+  const instruments = [...ids].map(instr).filter((i) => i && !isPiano(i));
+  const res = await Eng.call('lab', { tests, instruments, timing: true });
+  ses.lab = tests.map((tc, i) => ({ tc, r: res.rows[i] }));
+  if (res.times) ses.labTimes = res.times;
+}
+function labRefresh() { labRun().then(() => { if (stack.length && stack[stack.length - 1].fn === labSheet) drawSheet(true); }); }
 function labSheet() {
-  if (!ses.lab || ses.lab.length !== S.tests.length) labRun();
+  if (!ses.lab) return '<p class="note">Running the Lab on this device…</p>';
   const L = ses.lab, n = L.length || 1, t1 = L.filter((x) => x.r.rank === 1).length, t3 = L.filter((x) => x.r.rank >= 1 && x.r.rank <= 3).length;
   const conf = L.filter((x) => x.tc.status === 'confirmed'), c3 = conf.filter((x) => x.r.rank >= 1 && x.r.rank <= 3).length;
   const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
@@ -2107,6 +2336,11 @@ function labSheet() {
     const ok = x.r.rank >= 1 && x.r.rank <= 3, tgt = instr(x.tc.target), src = x.tc.source.kind === 'piano' ? E.PIANO : instr(x.tc.source.instrument);
     return `<div class="row tap" data-act="case" data-i="${i}"><span class="mark ${ok ? '' : 'fail'}" aria-label="${ok ? 'Pass' : 'Fail'}"></span><span class="grow"><span class="name">${esc(x.tc.name)}</span><span class="sub">${esc(src ? src.name : 'missing instrument')} to ${esc(tgt ? tgt.name : 'missing instrument')} · ${x.r.missing ? 'instrument missing' : x.r.rank ? 'rank ' + x.r.rank : 'not in the top four'}</span></span><span class="tag ${x.tc.status === 'confirmed' ? 'ok' : ''}">${x.tc.status === 'confirmed' ? 'Confirmed' : 'Provisional'}</span></div>`;
   }).join(''));
+  const T = ses.labTimes, ms = (x) => (x < 10 ? x.toFixed(1) : Math.round(x)) + ' ms';
+  h += sec('Speed on this device', T ? `<table class="bd"><tr><th>Step</th><th class="n">Median</th><th class="n">Slowest</th></tr>
+    <tr><td>Translation</td><td class="n">${ms(T.translate.median)}</td><td class="n">${ms(T.translate.slowest)}</td></tr>
+    <tr><td>Capo suggestion</td><td class="n">${ms(T.capo.median)}</td><td class="n">${ms(T.capo.slowest)}</td></tr></table>
+    <p class="note">Across ${T.cases} cases, run ${Eng.mode === 'worker' ? 'in the background worker' : 'on the page, because no worker could start'}. The targets on a phone: results within 100 ms of the last tap, capo suggestions within 300 ms.</p>` : '<p class="note">Timings appear once the Lab has run.</p>');
   return h + `<div class="row"><span class="grow"></span>${pill('Restore the starter set', 'labrestore')}</div>`;
 }
 function caseSheet(i) {
@@ -2135,7 +2369,7 @@ function loadWork(src, tgtId, capos) {
   if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
   else { if (!instr(src.instrument)) return toast('That instrument is no longer saved.'); S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
   if (tgtId && instr(tgtId)) { S.settings.tgt = tgtId; S.work.tgtCapos = clone(capos || []); }
-  ses.kbInit = false; save(); recompute(); closeSheet(); render(); flashComp();
+  ses.kbInit = false; save(); recompute(0, true); closeSheet(); render();
 }
 
 /* backup */
@@ -2155,7 +2389,7 @@ Object.assign(ACT, {
   instr(el) { ses.sheetSide = el.dataset.side; openSheet(() => (ses.sheetSide === 'src' ? 'Source instrument' : 'Target instrument'), () => instrSheet(ses.sheetSide), true); },
   library() { openSheet('Library', librarySheet, true); },
   settings() { openSheet('Settings', settingsSheet, true); },
-  lab() { labRun(); openSheet('Lab', labSheet); },
+  lab() { ses.lab = null; openSheet('Lab', labSheet); labRefresh(); },
   case(el) { const i = +el.dataset.i; openSheet(ses.lab[i].tc.name, () => caseSheet(i)); },
   pickinstr(el, e) {
     if (e.target.closest('[data-act="editinstr"]')) return;
@@ -2244,9 +2478,9 @@ Object.assign(ACT, {
   },
   usefromwhy(el) { closeSheet(); usePick(+el.dataset.i); },
   caseconfirm(el) { ses.lab[+el.dataset.i].tc.status = 'confirmed'; save(); drawSheet(true); },
-  casedel(el) { const tc = ses.lab[+el.dataset.i].tc; S.tests = S.tests.filter((t) => t !== tc); save(); labRun(); ACT.backsheet(); },
+  casedel(el) { const tc = ses.lab[+el.dataset.i].tc; S.tests = S.tests.filter((t) => t !== tc); save(); ACT.backsheet(); labRefresh(); },
   caseopen(el) { const tc = ses.lab[+el.dataset.i].tc; loadWork(tc.source, tc.target, tc.capos); },
-  labrestore() { const have = new Set(S.tests.map((t) => t.id)); for (const t of starterTests()) if (!have.has(t.id)) S.tests.push(t); save(); labRun(); drawSheet(true); },
+  labrestore() { const have = new Set(S.tests.map((t) => t.id)); for (const t of starterTests()) if (!have.has(t.id)) S.tests.push(t); save(); ses.lab = null; drawSheet(true); labRefresh(); },
   async backup() {
     const data = backupData(), name = `notations-backup-${new Date().toISOString().slice(0, 10)}.json`;
     try {
@@ -2301,9 +2535,9 @@ document.addEventListener('paste', (e) => {
 (async function boot() {
   await loadLabCases();
   S = await Store.load();
-  recompute();
+  recompute(0, true);
   render();
-  requestAnimationFrame(() => { render(); if (ses.out) flashComp(); });
+  requestAnimationFrame(() => render());
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderBridge());
   if (BUILD === 'artifact') { const tag = $('#buildTag'); if (tag) tag.hidden = false; initRemote(); }
   else registerWorker();

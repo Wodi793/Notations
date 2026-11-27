@@ -2,9 +2,9 @@
 (async function boot() {
   await loadLabCases();
   S = await Store.load();
-  recompute();
+  recompute(0, true);
   render();
-  requestAnimationFrame(() => { render(); if (ses.out) flashComp(); });
+  requestAnimationFrame(() => render());
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderBridge());
   if (BUILD === 'artifact') { const tag = $('#buildTag'); if (tag) tag.hidden = false; initRemote(); }
   else registerWorker();

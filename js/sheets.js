@@ -175,9 +175,19 @@ function openWhy(i) {
 }
 
 /* lab */
-function labRun() { ses.lab = S.tests.map((tc) => ({ tc, r: E.runTest(tc, instr, {}, {}) })); }
+// The Lab runs in the engine worker, with default weights, and times the engine on this device.
+async function labRun() {
+  ses.lab = null;
+  const tests = S.tests.slice(), ids = new Set();
+  for (const tc of tests) { ids.add(tc.target); if (tc.source.instrument) ids.add(tc.source.instrument); }
+  const instruments = [...ids].map(instr).filter((i) => i && !isPiano(i));
+  const res = await Eng.call('lab', { tests, instruments, timing: true });
+  ses.lab = tests.map((tc, i) => ({ tc, r: res.rows[i] }));
+  if (res.times) ses.labTimes = res.times;
+}
+function labRefresh() { labRun().then(() => { if (stack.length && stack[stack.length - 1].fn === labSheet) drawSheet(true); }); }
 function labSheet() {
-  if (!ses.lab || ses.lab.length !== S.tests.length) labRun();
+  if (!ses.lab) return '<p class="note">Running the Lab on this device…</p>';
   const L = ses.lab, n = L.length || 1, t1 = L.filter((x) => x.r.rank === 1).length, t3 = L.filter((x) => x.r.rank >= 1 && x.r.rank <= 3).length;
   const conf = L.filter((x) => x.tc.status === 'confirmed'), c3 = conf.filter((x) => x.r.rank >= 1 && x.r.rank <= 3).length;
   const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
@@ -188,6 +198,11 @@ function labSheet() {
     const ok = x.r.rank >= 1 && x.r.rank <= 3, tgt = instr(x.tc.target), src = x.tc.source.kind === 'piano' ? E.PIANO : instr(x.tc.source.instrument);
     return `<div class="row tap" data-act="case" data-i="${i}"><span class="mark ${ok ? '' : 'fail'}" aria-label="${ok ? 'Pass' : 'Fail'}"></span><span class="grow"><span class="name">${esc(x.tc.name)}</span><span class="sub">${esc(src ? src.name : 'missing instrument')} to ${esc(tgt ? tgt.name : 'missing instrument')} · ${x.r.missing ? 'instrument missing' : x.r.rank ? 'rank ' + x.r.rank : 'not in the top four'}</span></span><span class="tag ${x.tc.status === 'confirmed' ? 'ok' : ''}">${x.tc.status === 'confirmed' ? 'Confirmed' : 'Provisional'}</span></div>`;
   }).join(''));
+  const T = ses.labTimes, ms = (x) => (x < 10 ? x.toFixed(1) : Math.round(x)) + ' ms';
+  h += sec('Speed on this device', T ? `<table class="bd"><tr><th>Step</th><th class="n">Median</th><th class="n">Slowest</th></tr>
+    <tr><td>Translation</td><td class="n">${ms(T.translate.median)}</td><td class="n">${ms(T.translate.slowest)}</td></tr>
+    <tr><td>Capo suggestion</td><td class="n">${ms(T.capo.median)}</td><td class="n">${ms(T.capo.slowest)}</td></tr></table>
+    <p class="note">Across ${T.cases} cases, run ${Eng.mode === 'worker' ? 'in the background worker' : 'on the page, because no worker could start'}. The targets on a phone: results within 100 ms of the last tap, capo suggestions within 300 ms.</p>` : '<p class="note">Timings appear once the Lab has run.</p>');
   return h + `<div class="row"><span class="grow"></span>${pill('Restore the starter set', 'labrestore')}</div>`;
 }
 function caseSheet(i) {
@@ -216,7 +231,7 @@ function loadWork(src, tgtId, capos) {
   if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
   else { if (!instr(src.instrument)) return toast('That instrument is no longer saved.'); S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
   if (tgtId && instr(tgtId)) { S.settings.tgt = tgtId; S.work.tgtCapos = clone(capos || []); }
-  ses.kbInit = false; save(); recompute(); closeSheet(); render(); flashComp();
+  ses.kbInit = false; save(); recompute(0, true); closeSheet(); render();
 }
 
 /* backup */
@@ -236,7 +251,7 @@ Object.assign(ACT, {
   instr(el) { ses.sheetSide = el.dataset.side; openSheet(() => (ses.sheetSide === 'src' ? 'Source instrument' : 'Target instrument'), () => instrSheet(ses.sheetSide), true); },
   library() { openSheet('Library', librarySheet, true); },
   settings() { openSheet('Settings', settingsSheet, true); },
-  lab() { labRun(); openSheet('Lab', labSheet); },
+  lab() { ses.lab = null; openSheet('Lab', labSheet); labRefresh(); },
   case(el) { const i = +el.dataset.i; openSheet(ses.lab[i].tc.name, () => caseSheet(i)); },
   pickinstr(el, e) {
     if (e.target.closest('[data-act="editinstr"]')) return;
@@ -325,9 +340,9 @@ Object.assign(ACT, {
   },
   usefromwhy(el) { closeSheet(); usePick(+el.dataset.i); },
   caseconfirm(el) { ses.lab[+el.dataset.i].tc.status = 'confirmed'; save(); drawSheet(true); },
-  casedel(el) { const tc = ses.lab[+el.dataset.i].tc; S.tests = S.tests.filter((t) => t !== tc); save(); labRun(); ACT.backsheet(); },
+  casedel(el) { const tc = ses.lab[+el.dataset.i].tc; S.tests = S.tests.filter((t) => t !== tc); save(); ACT.backsheet(); labRefresh(); },
   caseopen(el) { const tc = ses.lab[+el.dataset.i].tc; loadWork(tc.source, tc.target, tc.capos); },
-  labrestore() { const have = new Set(S.tests.map((t) => t.id)); for (const t of starterTests()) if (!have.has(t.id)) S.tests.push(t); save(); labRun(); drawSheet(true); },
+  labrestore() { const have = new Set(S.tests.map((t) => t.id)); for (const t of starterTests()) if (!have.has(t.id)) S.tests.push(t); save(); ses.lab = null; drawSheet(true); labRefresh(); },
   async backup() {
     const data = backupData(), name = `notations-backup-${new Date().toISOString().slice(0, 10)}.json`;
     try {

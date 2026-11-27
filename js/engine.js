@@ -523,46 +523,78 @@ const Engine = (function () {
   /* ───────────── 6. Listing fingerings ───────────── */
   // Every playable fingering that uses only the source's pitch classes,
   // searched by hand position (the lowest fretted fret).
-  function enumerate(P, A, opt, minSound, need) {
-    const out = [], n = P.n, sel = new Array(n).fill(-1), mask = A.pcMask;
+  // visit(sel) is called for each playable fingering, with a scratch array it must copy if it keeps it.
+  function enumerate(P, A, opt, minSound, need, visit) {
+    const n = P.n, sel = new Array(n).fill(-1), mask = A.pcMask;
+    let count = 0;
     const openOk = P.open.map((o) => (o.pcm & ~mask) === 0);
     let p = 0, hi = 0;
-    const leaf = () => {
-      let runs = 0, inRun = false, above = 0;
-      if (p > 0) for (let c = 0; c < n; c++) {
-        const f = sel[c];
-        if (f > p) above++;
-        if (f === p) { if (!inRun) { runs++; inRun = true; } }
-        else if (f === 0) inRun = false;
-      }
-      if (above + runs > 4) return;
-      out.push(sel.slice());
-    };
-    // need: pitch classes every candidate must hold; a branch dies once too few courses remain to supply them
-    const dfs = (c, above, atP, sound, got) => {
+    // canP[c]: some course from c onwards can be fretted at p. A branch that has not yet placed a finger at p
+    // and can no longer do so would be rejected at its end, so it is dropped now.
+    const canP = new Uint8Array(n + 1);
+    // above: fingers above the lowest fret; runs: barre runs at the lowest fret (an open course breaks a run).
+    // Both only grow along a branch, so a branch past four fingers is dropped as soon as it gets there.
+    const dfs = (c, above, atP, sound, got, runs, inRun) => {
       if (sound + (n - c) < minSound) return;
       if (need) { const miss = need & ~got; if (miss && POP[miss] > n - c) return; }
-      if (c === n) { if (p === 0 || atP > 0) leaf(); return; }
-      sel[c] = -1; dfs(c + 1, above, atP, sound, got);
-      if (openOk[c]) { sel[c] = 0; dfs(c + 1, above, atP, sound + 1, got | P.open[c].pcm); }
+      if (p > 0 && atP === 0 && !canP[c]) return;
+      if (c === n) { count++; visit(sel); return; }
+      sel[c] = -1; dfs(c + 1, above, atP, sound, got, runs, inRun);
+      if (openOk[c]) { sel[c] = 0; dfs(c + 1, above, atP, sound + 1, got | P.open[c].pcm, runs, false); }
       if (p > 0) {
         const row = P.fret[c], col = P.collide[c];
         for (let f = p; f <= hi; f++) {
           const o = row[f];
           if (!o || (o.pcm & ~mask) !== 0 || col[f]) continue;
-          if (f === p) { if (above + 1 > 4) continue; sel[c] = f; dfs(c + 1, above, atP + 1, sound + 1, got | o.pcm); }
-          else { if (above + 1 + (atP > 0 ? 1 : 0) > 4) continue; sel[c] = f; dfs(c + 1, above + 1, atP, sound + 1, got | o.pcm); }
+          if (f === p) {
+            const r = inRun ? runs : runs + 1;
+            if (above + r > 4) continue;
+            sel[c] = f; dfs(c + 1, above, atP + 1, sound + 1, got | o.pcm, r, true);
+          } else {
+            if (above + 1 + runs > 4) continue;
+            sel[c] = f; dfs(c + 1, above + 1, atP, sound + 1, got | o.pcm, runs, inRun);
+          }
         }
       }
       sel[c] = -1;
     };
-    dfs(0, 0, 0, 0, 0);
+    dfs(0, 0, 0, 0, 0, 0, false);
     for (p = 1; p <= P.fretCount; p++) {
       hi = p;
       while (hi + 1 <= P.fretCount && P.pos[hi + 1] - P.pos[p] <= opt.impossibleMm) hi++;
-      dfs(0, 0, 0, 0, 0);
+      canP[n] = 0;
+      for (let c = n - 1; c >= 0; c--) { const o = P.fret[c][p]; canP[c] = canP[c + 1] || (o && (o.pcm & ~mask) === 0 && !P.collide[c][p]) ? 1 : 0; }
+      dfs(0, 0, 0, 0, 0, 0, false);
     }
-    return out;
+    return count;
+  }
+
+  // The same voicing voicingOf builds, written into reusable arrays: used while scoring every candidate, so the
+  // search allocates nothing per fingering. Only candidates that can still reach the results become objects.
+  function scratchVoicing() { return { mains: [], all: null, multi: [], dedup: [], octs: [], mask: 0, pos: 0 }; }
+  function voicingInto(P, fr, V) {
+    const mains = V.mains, multi = V.multi, octs = V.octs;
+    mains.length = 0; multi.length = 0; octs.length = 0;
+    let mask = 0, pos = 0;
+    for (let c = 0; c < P.n; c++) {
+      const f = fr[c];
+      if (f < 0) continue;
+      if (f > 0 && (pos === 0 || f < pos)) pos = f;
+      const o = f === 0 ? P.open[c] : P.fret[c][f];
+      if (!o) continue;
+      insert(mains, o.main); mask |= o.pcm;
+      const ps = o.pitches;
+      for (let i = 0; i < ps.length; i++) insert(multi, ps[i]);
+      for (let i = 0; i < o.octs.length; i++) octs.push(o.octs[i]);
+    }
+    let all = multi;
+    for (let i = 1; i < multi.length; i++) if (multi[i] === multi[i - 1]) {
+      const d = V.dedup; d.length = 0;
+      for (let k = 0; k < multi.length; k++) if (k === 0 || multi[k] !== multi[k - 1]) d.push(multi[k]);
+      all = d; break;
+    }
+    V.all = all; V.mask = mask; V.pos = pos;
+    return V;
   }
   const POP = new Uint8Array(4096);
   for (let i = 1; i < 4096; i++) POP[i] = POP[i >> 1] + (i & 1);
@@ -702,16 +734,37 @@ const Engine = (function () {
     const P = prepare(req.target, req.capos);
     let need = 0;
     for (const pc of A.definingPcs) need |= 1 << pc;
-    let minSound = Math.min(3, A.pcs.length, P.n), raw = [], relaxed = false;
-    for (; minSound >= 1 && !raw.length; minSound--) {
-      raw = enumerate(P, A, opt, minSound, need);
-      if (!raw.length && need) { raw = enumerate(P, A, opt, minSound, 0); relaxed = raw.length > 0; }
+    // Score every playable fingering into flat arrays: fingerings, scores and bass tiers.
+    const n = P.n, frs = [], scores = [], tiers = [], SV = scratchVoicing();
+    const visit = (sel) => {
+      for (let c = 0; c < n; c++) frs.push(sel[c]);
+      voicingInto(P, sel, SV);
+      scores.push(scoreVoicing(A, SV, W, false).score); tiers.push(tierOf(A, SV));
+    };
+    let minSound = Math.min(3, A.pcs.length, P.n), found = 0, relaxed = false;
+    for (; minSound >= 1 && !found; minSound--) {
+      found = enumerate(P, A, opt, minSound, need, visit);
+      if (!found && need) { found = enumerate(P, A, opt, minSound, 0, visit); relaxed = found > 0; }
     }
     if (relaxed) flags.push({ code: 'definingRelaxed', text: 'No playable shape keeps every defining tone, so that rule was relaxed.' });
-    const cands = new Array(raw.length);
-    for (let i = 0; i < raw.length; i++) {
-      const fr = raw[i], V = voicingOf(P, fr);
-      cands[i] = { fr, V, score: scoreVoicing(A, V, W, false).score, tier: tierOf(A, V), diff: -1, multiKey: null, pos: 0 };
+    const frAt = (i) => frs.slice(i * n, i * n + n);
+    // Ranking key: the score, plus difficulty when "prefer easier" is on.
+    const keys = new Float64Array(found);
+    if (opt.preferEasier) for (let i = 0; i < found; i++) keys[i] = scores[i] + W.easeWeight * difficultyOf(P, frAt(i), opt, false).value;
+    else for (let i = 0; i < found; i++) keys[i] = scores[i];
+    // Past 3,000 candidates, only those within the tie window of the best 1,501 can reach the results.
+    let thr = Infinity;
+    if (found > 3000) {
+      const ks = new Float64Array(found);
+      for (let i = 0; i < found; i++) ks[i] = tiers[i] * 1e6 + keys[i];
+      ks.sort();
+      thr = ks[1500] + W.tieWindow;
+    }
+    const cands = [];
+    for (let i = 0; i < found; i++) {
+      if (tiers[i] * 1e6 + keys[i] > thr) continue;
+      const fr = frAt(i);
+      cands.push({ fr, V: voicingOf(P, fr), score: scores[i], tier: tiers[i], key: keys[i], diff: -1, multiKey: null, pos: 0 });
     }
     const prep = (c) => {
       if (c.multiKey) return;
@@ -720,14 +773,17 @@ const Engine = (function () {
       let lo = 0; for (const f of c.fr) if (f > 0 && (lo === 0 || f < lo)) lo = f;
       c.pos = lo;
     };
-    const list = rankAll(cands, W, opt, prep);
+    for (let i = 0; i < cands.length; i++) prep(cands[i]);
+    cands.sort((a, b) => a.tier - b.tier || a.key - b.key || a.diff - b.diff || cmpFr(a.fr, b.fr));
+    const seen = new Set(), list = [];
+    for (const c of cands) { if (seen.has(c.multiKey)) continue; seen.add(c.multiKey); list.push(c); if (list.length >= 400) break; }
     const results = pickOrdered(list, W, opt.maxResults, true).map((c) => finishStrings(P, A, W, opt, c));
     if (A.isSlash && results.length) {
       if (results[0].bassTier === 2) flags.push({ code: 'bassInside', text: `${A.bass.name} can't sit on the bottom here, so it is kept inside the chord.` });
       if (results[0].bassTier === 3) flags.push({ code: 'needsBass', text: 'This one needs a bass instrument or a second player.' });
     }
     const ranked = opt.ranked ? pickOrdered(list, W, opt.ranked, false).map((c) => finishStrings(P, A, W, opt, c)) : [];
-    return { analysis: A, results, flags, ranked, considered: cands.length };
+    return { analysis: A, results, flags, ranked, considered: found };
   }
 
   // Score one given fingering (Bill's own, or a test's expected answer), even if it breaks a hard rule.
@@ -847,19 +903,67 @@ const Engine = (function () {
   function suggestCapo(req, setups) {
     if (!req.target || req.target.kind === 'piano') return null;
     const base = translate(req);
-    if (!base.results.length || base.results[0].score <= 0) return null;
-    const baseScore = base.results[0].score, cur = JSON.stringify(req.capos || []);
+    const trials = capoTrials(req, setups);
+    for (const t of trials) { const r = translate(Object.assign({}, req, { capos: t.capos })); t.top = r.results[0] || null; }
+    return capoVerdict(base.results[0] || null, trials);
+  }
+  // The capo setups worth trying, in the order they are judged: common shapes first, then Bill's saved setups.
+  // The app runs these one at a time so the search can be stopped between them.
+  function capoTrials(req, setups) {
+    if (!req.target || req.target.kind === 'piano') return [];
+    const cur = JSON.stringify(req.capos || []), out = [];
+    for (const s of capoShapes(req.target)) if (JSON.stringify(s.capos) !== cur) out.push({ label: s.label, capos: s.capos });
+    for (const s of setups || []) if (JSON.stringify(s.capos) !== cur) out.push({ label: `your “${s.name}” setup`, capos: s.capos });
+    return out;
+  }
+  // baseTop: the top result without the change; trials: capoTrials, each with .top set to its top result (or null).
+  function capoVerdict(baseTop, trials) {
+    if (!baseTop || baseTop.score <= 0) return null;
+    const baseScore = baseTop.score;
     let best = null;
-    const tryOne = (label, capos) => {
-      if (JSON.stringify(capos) === cur) return;
-      const t = translate(Object.assign({}, req, { capos }));
-      if (!t.results.length || t.results[0].bassTier > base.results[0].bassTier) return;
-      const gain = (baseScore - t.results[0].score) / baseScore;
-      if (gain >= 0.15 && (!best || gain > best.gain)) best = { label, capos, gain: r2(gain), from: baseScore, to: t.results[0].score };
-    };
-    for (const s of capoShapes(req.target)) tryOne(s.label, s.capos);
-    for (const s of setups || []) tryOne(`your “${s.name}” setup`, s.capos);
+    for (const t of trials) {
+      if (!t.top || t.top.bassTier > baseTop.bassTier) continue;
+      const gain = (baseScore - t.top.score) / baseScore;
+      if (gain >= 0.15 && (!best || gain > best.gain)) best = { label: t.label, capos: t.capos, gain: r2(gain), from: baseScore, to: t.top.score };
+    }
     return best;
+  }
+
+  /* ───────────── 10b. Same notes, other fingerings ───────────── */
+  // Every playable fingering on the same instrument and capos that sounds exactly the same pitches as the given
+  // one, the given fingering left out. Ordered by hand position, then difficulty.
+  function sameNotes(req) {
+    const opt = Object.assign({}, DEFAULT_OPTIONS, req.options || {});
+    const P = prepare(req.target, req.capos), n = P.n;
+    const given = req.fingering.map((f) => (f == null || f < 0 ? -1 : f));
+    const V0 = voicingOf(P, given), want = new Map();
+    for (const p of V0.mains) want.set(p, (want.get(p) || 0) + 1);
+    const key0 = V0.multi.join(','), out = [], sel = new Array(n).fill(-1);
+    let left = V0.mains.length;
+    const take = (p) => { const k = want.get(p) || 0; if (!k) return false; want.set(p, k - 1); left--; return true; };
+    const give = (p) => { want.set(p, want.get(p) + 1); left++; };
+    const dfs = (c) => {
+      if (left > n - c) return;
+      if (c === n) {
+        if (left) return;
+        const fr = sel.slice(), h = handShape(P, fr);
+        if (h.fingers > 4 || h.span > opt.impossibleMm || cmpFr(fr, given) === 0) return;
+        if (voicingOf(P, fr).multi.join(',') !== key0) return;
+        out.push({ fingering: fr, text: fr.map((f) => (f < 0 ? 'x' : f)).join('-'), position: h.lo, difficulty: difficultyOf(P, fr, opt, false).value });
+        return;
+      }
+      sel[c] = -1; dfs(c + 1);
+      if (take(P.open[c].main)) { sel[c] = 0; dfs(c + 1); give(P.open[c].main); }
+      for (let f = P.minEff[c] + 1; f <= P.fretCount; f++) {
+        const o = P.fret[c][f];
+        if (!o || P.collide[c][f] || !take(o.main)) continue;
+        sel[c] = f; dfs(c + 1); give(o.main);
+      }
+      sel[c] = -1;
+    };
+    if (left) dfs(0);
+    out.sort((a, b) => a.position - b.position || a.difficulty - b.difficulty || cmpFr(a.fingering, b.fingering));
+    return out;
   }
 
   /* ───────────── 11. Learning from picks (weight nudging, not machine learning) ───────────── */
@@ -982,7 +1086,7 @@ const Engine = (function () {
 
   return {
     VERSION, PIANO, PRESETS, TIPLE_TEMPLATES, DEFAULT_WEIGHTS, DEFAULT_OPTIONS, WEIGHT_INFO, LEARNABLE, CHIP_KEYS,
-    analyze, translate, evaluate, explain, suggestCapo, capoShapes,
+    analyze, translate, evaluate, explain, suggestCapo, capoShapes, capoTrials, capoVerdict, sameNotes,
     prepare, voicingOf, handShape, difficultyOf, sourceNotes, fullCapo, partialCapo, mainOf, spanMm, fingerPos, fretDist,
     traits, contextKey, contextLabel, newTaste, effectiveWeights, effectiveMultipliers, learn, tasteNotes,
     runTest, resolveSource, parseNote, parseNotes, pitchName, roleWord, intervalShort, mod12, octaveOf,

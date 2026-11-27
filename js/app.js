@@ -1,6 +1,6 @@
 /* APP — the main screen: what is entered, what the engine returns, and drawing it. Everything musical is decided by Engine. */
 /* ───────── session ───────── */
-const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false };
+const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false, gen: 0, pending: false, trT: 0, flashNext: false };
 const GEO = {};
 const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
 const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
@@ -26,23 +26,47 @@ const packVoicing = (r) => (r.kind === 'piano' ? { pitches: r.pitches.slice() } 
 const allCards = () => (ses.out ? [...(ses.custom ? [ses.custom] : []), ...ses.out.results] : []);
 const currentCard = () => allCards()[ses.card] || null;
 
-function recompute() {
+// The chord is analysed at once (it is cheap), so the source colours and the name update in the same frame as the
+// tap. The translation runs in the engine worker after the input settles; a newer input makes older answers stale.
+function recompute(delay, flash) {
   const src = currentSource(), tgt = side('tgt');
-  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, card: 0, editing: null, out: null });
-  clearTimeout(ses.hintT);
-  if (ses.A.empty) return;
+  ses.gen++;
+  clearTimeout(ses.trT); clearTimeout(ses.hintT);
+  Object.assign(ses, { A: E.analyze(E.sourceNotes(src)), custom: null, picked: null, reasons: null, capoHint: null, editing: null });
+  if (ses.A.empty) { ses.out = null; ses.pending = false; return; }
   ses.ctx = E.contextKey(ses.A, tgt);
   ses.W = E.effectiveWeights(S.weights, S.taste, ses.ctx);
   ses.req = { source: src, target: tgt, capos: isPiano(tgt) ? [] : S.work.tgtCapos, weights: ses.W, options: opts() };
-  ses.out = E.translate(ses.req);
-  if (!isPiano(tgt)) {
-    const req = ses.req;
-    ses.hintT = setTimeout(() => {
-      const h = E.suggestCapo(req, S.capoSetups.filter((c) => c.courses === tgt.courses.length));
-      if (h && ses.req === req) { ses.capoHint = h; renderBridge(); }
-    }, 350);
-  }
+  ses.pending = true;
+  if (flash) ses.flashNext = true;
+  const gen = ses.gen, req = ses.req;
+  ses.trT = setTimeout(() => translateNow(gen, req), delay || 0);
 }
+async function translateNow(gen, req) {
+  let out;
+  try { out = await Eng.call('translate', req); } catch (e) { out = E.translate(req); }
+  if (gen !== ses.gen) return;
+  ses.out = out; ses.pending = false; ses.card = 0;
+  renderSource(); renderBridge(); renderTarget();
+  if (ses.flashNext) { ses.flashNext = false; flashComp(); }
+  scheduleCapo(gen, req);
+}
+// Capo suggestions come last: only after the results are on screen and input has been quiet for 600 ms, one
+// setup at a time, abandoned as soon as anything changes.
+function scheduleCapo(gen, req) {
+  if (isPiano(req.target)) return;
+  ses.hintT = setTimeout(async () => {
+    const trials = E.capoTrials(req, S.capoSetups.filter((c) => c.courses === req.target.courses.length));
+    for (const t of trials) {
+      if (gen !== ses.gen) return;
+      try { t.top = await Eng.call('translateTop', Object.assign({}, req, { capos: t.capos })); } catch (e) { return; }
+    }
+    if (gen !== ses.gen || !ses.out) return;
+    const h = E.capoVerdict(ses.out.results[0] || null, trials);
+    if (h) { ses.capoHint = h; renderBridge(); }
+  }, 600);
+}
+function markBusy() { const b = $('#tgtBody'); if (b) b.classList.toggle('busy', !!ses.pending); }
 
 /* ───────── drawing ───────── */
 function noteColour(A, pitch, isTop, isBass) {
@@ -173,7 +197,7 @@ function render() {
   renderSource(); renderBridge(); renderTarget();
 }
 function statusMap() {
-  const c = currentCard(), m = {};
+  const c = ses.pending ? null : currentCard(), m = {};
   if (c && !ses.editing) for (const x of c.compromise.sourceMap) m[x.pitch] = x.status === 'kept' ? null : x.status;
   return m;
 }
@@ -200,7 +224,7 @@ function renderSource() {
   }
 }
 function compText() {
-  const c = currentCard();
+  const c = ses.pending ? null : currentCard();
   if (!c) return '';
   const extra = [...c.flags.map((f) => f.text), ...(ses.out.flags || []).filter((f) => f.code === 'bassInside').map((f) => f.text)];
   return esc([c.compromise.text, ...new Set(extra)].join(' '));
@@ -245,6 +269,7 @@ function resultSVG(res, W, H) {
 const favKey = (res) => S.settings.tgt + '|' + JSON.stringify(isPiano(side('tgt')) ? [] : S.work.tgtCapos) + '|' + res.text;
 function renderTarget() {
   const box = $('#tgtBody'), tgt = side('tgt'), W = box.clientWidth, H = box.clientHeight;
+  markBusy();
   if (W < 20 || H < 20) return;
   if (ses.editing) {
     box.innerHTML = `<div class="card" style="height:100%"><div class="card-body"><div class="scroll" id="editScroll"></div></div><div class="card-row"><span class="rubric grow">Your voicing · ${esc(tgt.name)}</span><button class="txtbtn" data-act="editcancel">Cancel</button><button class="use" data-act="editsave"><span>Save</span></button></div></div>`;
@@ -252,7 +277,7 @@ function renderTarget() {
     return;
   }
   if (!ses.out || !ses.out.results.length) {
-    box.innerHTML = `<div class="none"><p class="rubric">Translation · ${esc(tgt.name)}</p><p>${ses.A && !ses.A.empty ? 'No playable voicing found.' : 'The closest playable voicings will appear here.'}</p></div>`;
+    box.innerHTML = `<div class="none"><p class="rubric">Translation · ${esc(tgt.name)}</p><p>${ses.pending ? 'Finding voicings…' : ses.A && !ses.A.empty ? 'No playable voicing found.' : 'The closest playable voicings will appear here.'}</p></div>`;
     return;
   }
   const cards = allCards(), n = ses.out.results.length;
@@ -329,7 +354,7 @@ function boardTap(id, e, svg) {
       fing[c] = fing[c] === f ? null : f;
     }
   }
-  if (srcSide) { save(true); recompute(); render(); if (ses.out) flashComp(); } else drawEditor();
+  if (srcSide) { save(true); recompute(60, true); renderSource(); renderBridge(); markBusy(); } else drawEditor();
 }
 
 /* ───────── actions ───────── */
@@ -358,7 +383,7 @@ const ACT = {
     ses.kbInit = false; save(); recompute(); render();
   },
   showcomp() { if (ses.out) flashComp(); },
-  applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(); render(); flashComp(); toast('Capo applied. Remove it from the target instrument sheet.'); },
+  applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(0, true); render(); toast('Capo applied. Remove it from the target instrument sheet.'); },
   why(el) { openWhy(+el.dataset.i); },
   star(el) {
     const res = allCards()[+el.dataset.i]; if (!res) return;

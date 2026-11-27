@@ -16,7 +16,9 @@ const out = `<title>Notations</title>
 ${css}</style>
 ${body}
 <script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = ${JSON.stringify(labCases)};</script>
-${scripts.map((s) => `<script>\n/* ${s} */\n${stripExports(read(s))}</script>`).join('\n')}
+<script type="text/plain" id="worker-src">
+${read('js/engine-worker.js')}</script>
+${scripts.map((s) => `<script${s === 'js/engine.js' ? ' id="engine-src"' : ''}>\n/* ${s} */\n${stripExports(read(s))}</script>`).join('\n')}
 `;
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/notations-artifact.html'), out);

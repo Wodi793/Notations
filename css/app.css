@@ -189,3 +189,6 @@ table.bd tr.hit td:first-child { color: var(--accent); }
 @media (max-width: 599px) { .short { display: inline; } }
 label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 .buildtag { font-family: var(--sans); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text2); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; vertical-align: 3px; margin-left: 6px; }
+/* While a new translation is on its way, the previous cards dim and stop taking taps. */
+.strip-body.busy { opacity: .45; pointer-events: none; transition: opacity .2s var(--ease) .08s; }
+.strip-body { transition: opacity .15s var(--ease); }
