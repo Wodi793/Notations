@@ -4,7 +4,7 @@
    the TESTS block is the parity suite for that port. */
 const Engine = (function () {
   'use strict';
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
 
   /* ───────────── 1. Notes ───────────── */
   const SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -389,7 +389,7 @@ const Engine = (function () {
 
   /* ───────────── 4. Scoring ───────────── */
   const DEFAULT_WEIGHTS = {
-    topOctave: 8, topDifferent: 25, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
+    topOctave: 8, topDifferent: 40, octaveOverTop: 6, colourMissing: 25, rubLost: 15, bassMissing: 10,
     registerPerSemitone: 1, registerCap: 30, lowMud: 6, doubledThird: 6, doubledColour: 8,
     rootMissing: 4, fifthMissing: 1, highPosition: 2, definingLost: 60, tieWindow: 3, easeWeight: 2,
   };
@@ -400,7 +400,7 @@ const Engine = (function () {
     colourMissing: ['Colour tone missing', 'each'],
     rubLost: ['Rub lost', 'each'],
     bassMissing: ['Bass missing', ''],
-    registerPerSemitone: ['Register shift', 'per semitone, averaged over the notes'],
+    registerPerSemitone: ['Register shift', 'per semitone'],
     registerCap: ['Register shift, most it can cost', ''],
     lowMud: ['Low mud', 'each'],
     doubledThird: ['Doubled 3rd', ''],
@@ -417,13 +417,9 @@ const Engine = (function () {
 
   // Source and result pitches paired in sorted order: lowest with lowest,
   // highest with highest, the rest spread evenly across the longer list.
-  // The result is the average movement per paired note, so a fuller voicing is not charged for having more notes.
   function registerShift(src, res) {
     const m = src.length, n = res.length;
     if (!m || !n) return 0;
-    return registerSum(src, res, m, n) / Math.min(m, n);
-  }
-  function registerSum(src, res, m, n) {
     let sum = 0;
     if (m <= n) for (let i = 0; i < m; i++) { const j = m === 1 ? n - 1 : Math.round((i * (n - 1)) / (m - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
     else for (let j = 0; j < n; j++) { const i = n === 1 ? m - 1 : Math.round((j * (m - 1)) / (n - 1)); sum += Math.abs(res[j] - src[i].pitch) * src[i].weight; }
@@ -481,7 +477,7 @@ const Engine = (function () {
     if (semis > 0) {
       const raw = semis * W.registerPerSemitone, capped = Math.min(raw, W.registerCap);
       s += capped;
-      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement per note${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
+      if (bd && capped > 0) add('Register shift', 'registerPerSemitone', capped, `${r2(semis)} semitones of movement${raw > capped ? `, capped at ${W.registerCap}` : ''}`);
     }
     // low mud: mud the source already had is part of its sound, so only new mud is charged
     for (let i = 0; i + 1 < all.length && all[i] < 55; i++) {
