@@ -9,6 +9,10 @@ const body = index.split('<!-- APP:BODY -->')[1].split('<!-- /APP:BODY -->')[0];
 const css = read('css/app.css');
 const labCases = JSON.parse(read('tests/lab-cases.json')).cases;
 const progCases = JSON.parse(read('tests/progressions.json'));
+// Piano samples are inlined only if the whole set is under 2 MB; otherwise the artifact uses the synthesized piano.
+const sampleDir = path.join(root, 'samples/piano'), sampleFiles = fs.existsSync(sampleDir) ? fs.readdirSync(sampleDir).filter((f) => f.endsWith('.m4a')) : [];
+const sampleBytes = sampleFiles.reduce((a, f) => a + fs.statSync(path.join(sampleDir, f)).size, 0);
+const samples = sampleBytes && sampleBytes < 2 * 1024 * 1024 ? Object.fromEntries(sampleFiles.map((f) => [f.replace('.m4a', ''), fs.readFileSync(path.join(sampleDir, f)).toString('base64')])) : null;
 const stripExports = (s) => s.replace(/\nif \(typeof module[^\n]*\n?/g, '\n');
 const out = `<title>Notations</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -16,7 +20,7 @@ const out = `<title>Notations</title>
 <style>
 ${css}</style>
 ${body}
-<script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = ${JSON.stringify(labCases)}; window.NOTATIONS_PROG_CASES = ${JSON.stringify(progCases)};</script>
+<script>window.NOTATIONS_BUILD = 'artifact'; window.NOTATIONS_LAB_CASES = ${JSON.stringify(labCases)}; window.NOTATIONS_PROG_CASES = ${JSON.stringify(progCases)};${samples ? ` window.NOTATIONS_PIANO_SAMPLES = ${JSON.stringify(samples)};` : ''}</script>
 <script type="text/plain" id="worker-src">
 ${read('js/engine-worker.js')}</script>
 ${scripts.map((s) => `<script${s === 'js/engine.js' ? ' id="engine-src"' : s === 'js/progcheck.js' ? ' id="progcheck-src"' : ''}>\n/* ${s} */\n${stripExports(read(s))}</script>`).join('\n')}
@@ -30,4 +34,4 @@ const h = crypto.createHash('sha256');
 for (const f of shell) if (f !== './') h.update(fs.readFileSync(path.join(root, f)));
 const version = h.digest('hex').slice(0, 10);
 fs.writeFileSync(path.join(root, 'sw.js'), sw.replace(/const VERSION = '[^']*';/, `const VERSION = '${version}';`));
-console.log(`dist/notations-artifact.html ${(out.length / 1024).toFixed(0)} KB; sw.js version ${version}`);
+console.log(`dist/notations-artifact.html ${(out.length / 1024).toFixed(0)} KB (piano samples ${samples ? 'inlined, ' + (sampleBytes / 1024).toFixed(0) + ' KB' : 'not inlined'}); sw.js version ${version}`);

@@ -1,4 +1,34 @@
 /* SOUND — press to hear, once. Plucked strings (Karplus-Strong) and a simple piano. */
+/* Piano samples: the Salamander Grand Piano (Alexander Holm, CC BY 3.0), one velocity layer sampled every minor
+   third, A0 to C8. Fetched after the first tap; until they arrive, or if they fail, the synthesized piano plays.
+   Notes in between change the playback rate of the nearest sample. */
+const SAMPLE_NAMES = ['A0', 'C1', 'Ds1', 'Fs1', 'A1', 'C2', 'Ds2', 'Fs2', 'A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5', 'C6', 'Ds6', 'Fs6', 'A6', 'C7', 'Ds7', 'Fs7', 'A7', 'C8'];
+const PianoSamples = {
+  state: 'idle', buffers: new Map(),
+  midiOf: (i) => 21 + 3 * i,
+  async load(ctx) {
+    if (this.state !== 'idle') return;
+    this.state = 'loading';
+    const inline = window.NOTATIONS_PIANO_SAMPLES;
+    if (BUILD === 'artifact' && !inline) { this.state = 'none'; return; }
+    try {
+      await Promise.all(SAMPLE_NAMES.map(async (name, i) => {
+        let data;
+        if (inline) { const bin = atob(inline[name]); data = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) data[k] = bin.charCodeAt(k); data = data.buffer; }
+        else { const r = await fetch(`samples/piano/${name}.m4a`); if (!r.ok) throw new Error(name); data = await r.arrayBuffer(); }
+        const buf = await new Promise((res, rej) => ctx.decodeAudioData(data, res, rej));
+        this.buffers.set(this.midiOf(i), buf);
+      }));
+      this.state = 'ready';
+    } catch (e) { this.buffers.clear(); this.state = 'failed'; }
+  },
+  // The nearest sample at or below/above the pitch, and the playback rate that reaches it.
+  pick(p) {
+    if (this.state !== 'ready') return null;
+    const i = clamp(Math.round((p - 21) / 3), 0, SAMPLE_NAMES.length - 1), base = this.midiOf(i), buf = this.buffers.get(base);
+    return buf ? { buf, rate: Math.pow(2, (p - base) / 12) * (S.settings.a4 / 440) } : null;
+  },
+};
 /* iOS notes. Web audio starts only from a touch. Silent mode mutes ordinary web audio unless the page declares
    itself a playback app (navigator.audioSession, Safari 17+). After a call, other apps' audio, sleep or switching
    apps, the context can sit in 'interrupted' or 'suspended' and must be woken; if it will not wake, it is thrown
@@ -18,6 +48,7 @@ const Snd = {
       this.ctx = new AC(); this.primed = false; this.dead = false; this.cache.clear(); this.cur = null;
     }
     if (this.ctx.state !== 'running') { try { const r = this.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* retried in ready() */ } }
+    if (PianoSamples.state === 'idle') PianoSamples.load(this.ctx);
     if (!this.primed) {
       try { const s = this.ctx.createBufferSource(); s.buffer = this.ctx.createBuffer(1, 1, 22050); s.connect(this.ctx.destination); s.start(0); this.primed = true; } catch (e) { /* next tap */ }
     }
@@ -34,7 +65,7 @@ const Snd = {
   },
   state() {
     const session = navigator.audioSession ? navigator.audioSession.type : 'not supported';
-    return { context: this.ctx ? this.ctx.state : 'not started', session, rate: this.ctx ? this.ctx.sampleRate : 0 };
+    return { context: this.ctx ? this.ctx.state : 'not started', session, rate: this.ctx ? this.ctx.sampleRate : 0, piano: PianoSamples.state };
   },
   freq: (p) => S.settings.a4 * Math.pow(2, (p - 69) / 12),
   // Karplus-Strong pluck; brightness and decay scale loosely with pitch.
@@ -58,6 +89,13 @@ const Snd = {
     s.buffer = this.pluck(p); gn.gain.value = g; s.connect(gn); gn.connect(out); s.start(t);
   },
   voicePiano(p, g, t, out) {
+    const smp = PianoSamples.pick(p);
+    if (smp) {
+      const src = this.ctx.createBufferSource(), gn = this.ctx.createGain();
+      src.buffer = smp.buf; src.playbackRate.value = smp.rate;
+      gn.gain.value = g * 1.6; src.connect(gn); gn.connect(out); src.start(t);
+      return;
+    }
     const c = this.ctx, f = this.freq(p), dur = clamp(3 - (p - 36) * 0.025, 1.1, 3);
     const env = c.createGain(), lp = c.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = Math.min(9000, f * 7);

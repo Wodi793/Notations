@@ -185,7 +185,9 @@ function settingsSheet() {
     <div id="bkArea"></div>`;
   return sec('Lab', `<div class="row tap" data-act="lab"><span class="grow"><span class="name">Open the Lab</span><span class="sub">Check the engine against ${S.tests.length} test cases.</span></span>${ICON.right}</div>`) +
     sec('Reach', reach) + sec('Tuning', tune) + sec('Scoring weights', w) + sec('Learned taste', t) + sec('Backup and restore', bk) +
-    `<p class="note">Notations, engine ${E.VERSION}. No AI chooses the voicings: the engine lists every playable shape and scores it by the rules above.</p>`;
+    sec('About Notations', `<p class="note" style="color:var(--text)">Notations, engine ${E.VERSION}. No AI chooses the voicings: the engine lists every playable shape and scores it by the rules above.</p>
+      <p class="note">Piano samples: Salamander Grand Piano by Alexander Holm, licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. Trimmed and converted for this app. <a href="https://github.com/sfzinstruments/SalamanderGrandPiano" target="_blank" rel="noopener">Source</a>.</p>
+      <p class="note">Staff drawn with <a href="https://github.com/vexflow/vexflow" target="_blank" rel="noopener">VexFlow</a> 5.0.0 (MIT licence), using the Bravura music font (SIL Open Font Licence).</p>`);
 }
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 function ctxSheet(key) {
@@ -445,7 +447,7 @@ Object.assign(ACT, {
     if (!out) return;
     const mode = st.session === 'playback' ? ' It is set to play in Silent mode.' : st.session === 'not supported' ? ' This browser cannot play through Silent mode.' : '';
     out.textContent = sched
-      ? `The audio is running.${mode} If you heard nothing, turn the volume up${st.session === 'playback' ? '' : ' or turn Silent mode off'}.`
+      ? `The audio is running.${mode} The piano is ${st.piano === 'ready' ? 'the recorded Salamander grand' : st.piano === 'loading' ? 'synthesized while the recorded one loads' : 'synthesized'}. If you heard nothing, turn the volume up${st.session === 'playback' ? '' : ' or turn Silent mode off'}.`
       : `The audio did not start (it is ${st.context}). Tap Play again. If it still fails, close the app and reopen it.`;
   },
   backupnow() { ACT.settings(); ACT.backup(); },

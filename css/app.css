@@ -260,3 +260,4 @@ button.chord { cursor: text; }
 .keybtn { font-family: var(--serif); font-size: 15px; color: var(--text); }
 @media (max-width: 599px) { .tray { flex-wrap: wrap; } .tray-ctl { width: 100%; justify-content: space-between; } }
 .warnsub { color: var(--warn) !important; white-space: normal !important; }
+.note a { color: var(--text); text-decoration: underline; text-decoration-color: var(--text2); }
