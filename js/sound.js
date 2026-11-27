@@ -1,11 +1,40 @@
 /* SOUND — press to hear, once. Plucked strings (Karplus-Strong) and a simple piano. */
+/* iOS notes. Web audio starts only from a touch. Silent mode mutes ordinary web audio unless the page declares
+   itself a playback app (navigator.audioSession, Safari 17+). After a call, other apps' audio, sleep or switching
+   apps, the context can sit in 'interrupted' or 'suspended' and must be woken; if it will not wake, it is thrown
+   away and a fresh one is made on the next tap. */
 const Snd = {
-  ctx: null, cache: new Map(), cur: null, primed: false,
+  ctx: null, cache: new Map(), cur: null, primed: false, dead: false, hinted: false,
+  declarePlayback() {
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { /* not supported */ }
+  },
+  // Synchronous part, run inside the gesture itself: iOS only honours a resume or a first sound made there.
   unlock() {
-    if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; this.ctx = new AC(); }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
-    if (!this.primed) { const s = this.ctx.createBufferSource(); s.buffer = this.ctx.createBuffer(1, 1, 22050); s.connect(this.ctx.destination); s.start(0); this.primed = true; }
+    this.declarePlayback();
+    if (this.dead && this.ctx) { try { this.ctx.close(); } catch (e) { /* already closed */ } this.ctx = null; }
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      this.ctx = new AC(); this.primed = false; this.dead = false; this.cache.clear(); this.cur = null;
+    }
+    if (this.ctx.state !== 'running') { try { const r = this.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* retried in ready() */ } }
+    if (!this.primed) {
+      try { const s = this.ctx.createBufferSource(); s.buffer = this.ctx.createBuffer(1, 1, 22050); s.connect(this.ctx.destination); s.start(0); this.primed = true; } catch (e) { /* next tap */ }
+    }
     return true;
+  },
+  // Waits for the context to be running. If it won't wake, it is marked dead and replaced on the next tap.
+  async ready() {
+    if (!this.unlock()) return false;
+    if (this.ctx.state !== 'running') {
+      try { await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 500))]); } catch (e) { /* checked below */ }
+    }
+    if (this.ctx.state !== 'running') { this.dead = true; return false; }
+    return true;
+  },
+  state() {
+    const session = navigator.audioSession ? navigator.audioSession.type : 'not supported';
+    return { context: this.ctx ? this.ctx.state : 'not started', session, rate: this.ctx ? this.ctx.sampleRate : 0 };
   },
   freq: (p) => S.settings.a4 * Math.pow(2, (p - 69) / 12),
   // Karplus-Strong pluck; brightness and decay scale loosely with pitch.
@@ -40,21 +69,25 @@ const Snd = {
     env.connect(lp); lp.connect(out);
   },
   // events: [{main, pitches:[{p,g}]}] in strum order. One play, then silence.
-  play(events, piano) {
-    if (!events.length || !this.unlock()) return;
-    const c = this.ctx, now = c.currentTime + 0.03;
+  // Returns the schedule [{pitches, at (seconds from now)}], or null when nothing could play.
+  async play(events, piano) {
+    if (!events.length) return null;
+    if (!(await this.ready())) { toast('Sound did not start. Tap play again.'); return null; }
+    const c = this.ctx, now = c.currentTime + 0.03, sched = [];
     if (this.cur) { this.cur.gain.setTargetAtTime(0, c.currentTime, 0.02); }
     const master = c.createGain();
     const voices = events.reduce((a, e) => a + e.pitches.length, 0);
     master.gain.value = (piano ? 0.5 : 0.75) / Math.sqrt(Math.max(1, voices / 2));
     master.connect(c.destination); this.cur = master;
-    const hit = (ev, t) => ev.pitches.forEach((x) => (piano ? this.voicePiano(x.p, x.g, t, master) : this.voicePluck(x.p, x.g, t, master)));
+    const hit = (ev, t) => { sched.push({ pitches: ev.pitches.map((x) => x.p), main: ev.main, at: t - c.currentTime }); ev.pitches.forEach((x) => (piano ? this.voicePiano(x.p, x.g, t, master) : this.voicePluck(x.p, x.g, t, master))); };
     if (S.settings.play === 'arp') {
       const up = events.slice().sort((a, b) => a.main - b.main), seq = [...up, ...up.slice(0, -1).reverse()];
       let t = now;
       seq.forEach((ev, i) => { hit(ev, t); t += i === up.length - 1 ? 0.19 : 0.11; });
     } else events.forEach((ev, i) => hit(ev, now + (piano ? 0 : i * 0.012)));
-    if (!S.settings.hintShown) { S.settings.hintShown = true; save(); toast('No sound? Check the silent switch.'); }
+    // Without audioSession, Silent mode mutes web audio: say so once per session.
+    if (!navigator.audioSession && !this.hinted) { this.hinted = true; toast('No sound? Check the silent switch.'); }
+    return sched;
   },
 };
 function eventsOf(inst, capos, voicing) {
@@ -68,3 +101,12 @@ function eventsOf(inst, capos, voicing) {
   return ev;
 }
 
+
+// Wake the audio on the gestures iOS trusts, and again when the app comes back to the foreground.
+for (const ev of ['pointerdown', 'touchend', 'click']) document.addEventListener(ev, () => Snd.unlock(), { passive: true, capture: true });
+function reviveAudio() {
+  if (!Snd.ctx || Snd.ctx.state === 'running') return;
+  Snd.ctx.resume().catch(() => {}).finally(() => setTimeout(() => { if (Snd.ctx && Snd.ctx.state !== 'running') Snd.dead = true; }, 300));
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reviveAudio(); });
+window.addEventListener('pageshow', reviveAudio);

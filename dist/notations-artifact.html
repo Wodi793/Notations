@@ -49,7 +49,7 @@ svg text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .seg button[aria-pressed="true"] span { background: var(--raised); color: var(--accent); box-shadow: inset 0 0 0 1px var(--hairline); }
 
 /* stage */
-.stage { display: grid; grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0; padding: 10px var(--gr) 10px var(--gl); min-height: 0; }
+.stage { display: grid; grid-template-rows: minmax(0, var(--top, 1fr)) auto auto minmax(0, var(--bot, 1fr)); gap: 0; padding: 10px var(--gr) 10px var(--gl); min-height: 0; }
 .strip { display: grid; grid-template-columns: minmax(0, 1fr) 56px; background: var(--surface); border-radius: 10px; min-height: 0; overflow: hidden; }
 .strip-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .strip-row { height: 44px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 4px 0 14px; min-width: 0; }
@@ -115,6 +115,7 @@ button.fig b { border-bottom: 1px solid var(--deep); }
 
 /* compact: one strip at a time, bridge on top */
 .compact .stage { grid-template-rows: auto minmax(0, 1fr); padding-top: 0; }
+.compact .divider { display: none; }
 .compact .bridge { order: -1; min-height: 60px; padding: 4px 0; }
 .compact .chord { font-size: 28px; min-height: 36px; }
 .compact .strip[data-side="src"]:not(.active), .compact .strip[data-side="tgt"]:not(.active) { display: none; }
@@ -196,6 +197,14 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
 /* While a new translation is on its way, the previous cards dim and stop taking taps. */
 .strip-body.busy { opacity: .45; pointer-events: none; transition: opacity .2s var(--ease) .08s; }
 .strip-body { transition: opacity .15s var(--ease); }
+/* The divider: a slim handle between the strips, with a full-size touch target. */
+.divider { height: 14px; position: relative; display: grid; place-items: center; cursor: row-resize; touch-action: none; }
+.divider::before { content: ""; position: absolute; left: 30%; right: 30%; top: -15px; bottom: -15px; }
+.divider span { width: 36px; height: 4px; border-radius: 2px; background: var(--hairline); transition: background .2s var(--ease); }
+.divider:hover span, .divider.dragging span, .divider:focus-visible span { background: var(--text2); }
+.scroll { touch-action: pan-x; }
+.txtbtn:disabled { opacity: .3; }
+@media (max-width: 599px) { .srcname { display: none; } }
 </style>
 
 <div id="app" class="roomy">
@@ -223,6 +232,7 @@ label.pill { display: inline-flex; align-items: center; cursor: pointer; }
       </div>
       <div class="playcol"><button class="play" data-act="play" data-side="src" aria-label="Play source"><svg viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z"/></svg></button></div>
     </section>
+    <div class="divider only-roomy" id="divider" role="separator" aria-orientation="horizontal" aria-label="Drag to share the height between the strips. Double-tap to even them." tabindex="0"><span></span></div>
     <section class="bridge">
       <div class="bridge-left">
         <div class="seg" id="segPlay" role="group" aria-label="Playback">
@@ -1600,13 +1610,42 @@ async function loadLabCases() {
 <script>
 /* js/sound.js */
 /* SOUND — press to hear, once. Plucked strings (Karplus-Strong) and a simple piano. */
+/* iOS notes. Web audio starts only from a touch. Silent mode mutes ordinary web audio unless the page declares
+   itself a playback app (navigator.audioSession, Safari 17+). After a call, other apps' audio, sleep or switching
+   apps, the context can sit in 'interrupted' or 'suspended' and must be woken; if it will not wake, it is thrown
+   away and a fresh one is made on the next tap. */
 const Snd = {
-  ctx: null, cache: new Map(), cur: null, primed: false,
+  ctx: null, cache: new Map(), cur: null, primed: false, dead: false, hinted: false,
+  declarePlayback() {
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { /* not supported */ }
+  },
+  // Synchronous part, run inside the gesture itself: iOS only honours a resume or a first sound made there.
   unlock() {
-    if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; this.ctx = new AC(); }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
-    if (!this.primed) { const s = this.ctx.createBufferSource(); s.buffer = this.ctx.createBuffer(1, 1, 22050); s.connect(this.ctx.destination); s.start(0); this.primed = true; }
+    this.declarePlayback();
+    if (this.dead && this.ctx) { try { this.ctx.close(); } catch (e) { /* already closed */ } this.ctx = null; }
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      this.ctx = new AC(); this.primed = false; this.dead = false; this.cache.clear(); this.cur = null;
+    }
+    if (this.ctx.state !== 'running') { try { const r = this.ctx.resume(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* retried in ready() */ } }
+    if (!this.primed) {
+      try { const s = this.ctx.createBufferSource(); s.buffer = this.ctx.createBuffer(1, 1, 22050); s.connect(this.ctx.destination); s.start(0); this.primed = true; } catch (e) { /* next tap */ }
+    }
     return true;
+  },
+  // Waits for the context to be running. If it won't wake, it is marked dead and replaced on the next tap.
+  async ready() {
+    if (!this.unlock()) return false;
+    if (this.ctx.state !== 'running') {
+      try { await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 500))]); } catch (e) { /* checked below */ }
+    }
+    if (this.ctx.state !== 'running') { this.dead = true; return false; }
+    return true;
+  },
+  state() {
+    const session = navigator.audioSession ? navigator.audioSession.type : 'not supported';
+    return { context: this.ctx ? this.ctx.state : 'not started', session, rate: this.ctx ? this.ctx.sampleRate : 0 };
   },
   freq: (p) => S.settings.a4 * Math.pow(2, (p - 69) / 12),
   // Karplus-Strong pluck; brightness and decay scale loosely with pitch.
@@ -1641,21 +1680,25 @@ const Snd = {
     env.connect(lp); lp.connect(out);
   },
   // events: [{main, pitches:[{p,g}]}] in strum order. One play, then silence.
-  play(events, piano) {
-    if (!events.length || !this.unlock()) return;
-    const c = this.ctx, now = c.currentTime + 0.03;
+  // Returns the schedule [{pitches, at (seconds from now)}], or null when nothing could play.
+  async play(events, piano) {
+    if (!events.length) return null;
+    if (!(await this.ready())) { toast('Sound did not start. Tap play again.'); return null; }
+    const c = this.ctx, now = c.currentTime + 0.03, sched = [];
     if (this.cur) { this.cur.gain.setTargetAtTime(0, c.currentTime, 0.02); }
     const master = c.createGain();
     const voices = events.reduce((a, e) => a + e.pitches.length, 0);
     master.gain.value = (piano ? 0.5 : 0.75) / Math.sqrt(Math.max(1, voices / 2));
     master.connect(c.destination); this.cur = master;
-    const hit = (ev, t) => ev.pitches.forEach((x) => (piano ? this.voicePiano(x.p, x.g, t, master) : this.voicePluck(x.p, x.g, t, master)));
+    const hit = (ev, t) => { sched.push({ pitches: ev.pitches.map((x) => x.p), main: ev.main, at: t - c.currentTime }); ev.pitches.forEach((x) => (piano ? this.voicePiano(x.p, x.g, t, master) : this.voicePluck(x.p, x.g, t, master))); };
     if (S.settings.play === 'arp') {
       const up = events.slice().sort((a, b) => a.main - b.main), seq = [...up, ...up.slice(0, -1).reverse()];
       let t = now;
       seq.forEach((ev, i) => { hit(ev, t); t += i === up.length - 1 ? 0.19 : 0.11; });
     } else events.forEach((ev, i) => hit(ev, now + (piano ? 0 : i * 0.012)));
-    if (!S.settings.hintShown) { S.settings.hintShown = true; save(); toast('No sound? Check the silent switch.'); }
+    // Without audioSession, Silent mode mutes web audio: say so once per session.
+    if (!navigator.audioSession && !this.hinted) { this.hinted = true; toast('No sound? Check the silent switch.'); }
+    return sched;
   },
 };
 function eventsOf(inst, capos, voicing) {
@@ -1669,12 +1712,21 @@ function eventsOf(inst, capos, voicing) {
   return ev;
 }
 
+
+// Wake the audio on the gestures iOS trusts, and again when the app comes back to the foreground.
+for (const ev of ['pointerdown', 'touchend', 'click']) document.addEventListener(ev, () => Snd.unlock(), { passive: true, capture: true });
+function reviveAudio() {
+  if (!Snd.ctx || Snd.ctx.state === 'running') return;
+  Snd.ctx.resume().catch(() => {}).finally(() => setTimeout(() => { if (Snd.ctx && Snd.ctx.state !== 'running') Snd.dead = true; }, 300));
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reviveAudio(); });
+window.addEventListener('pageshow', reviveAudio);
 </script>
 <script>
 /* js/app.js */
 /* APP — the main screen: what is entered, what the engine returns, and drawing it. Everything musical is decided by Engine. */
 /* ───────── session ───────── */
-const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false, gen: 0, pending: false, trT: 0, flashNext: false };
+const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, fit: { src: true, edit: true }, gen: 0, pending: false, trT: 0, flashNext: false };
 const GEO = {};
 const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
 const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
@@ -1758,6 +1810,10 @@ function noteLabel(A, pitch) {
   return r ? r.name : E.pitchName(pitch, A && A.flat).replace(/-?\d+$/, '');
 }
 const visibleFrets = () => (ses.roomy ? 12 : 7);
+// White-key width and fret width in points: Bill's pinch zoom if he has set one, else two octaves (three on an
+// iPad) and 12 frets (7 when one strip shows).
+const keyWidth = (W) => clamp(perScreen('zoom').kb || W / (bigScreen() ? 21 : 14), 22, 64);
+const fretWidth = (W) => clamp(perScreen('zoom').fb || (W - 56) / visibleFrets(), 28, 140);
 
 // o: {inst, capos, fing, start, count, W, H, A, status:{pitch:status}, top, bass, id}
 function drawFretboard(o) {
@@ -1855,9 +1911,24 @@ function keyNotes(A, pitches, top, bass, statusOf) {
 }
 
 /* ───────── render ───────── */
+/* ───────── space, zoom and the divider ───────── */
+// Settings that depend on the screen are kept per screen (Duo outer, Duo inner, iPad), whatever the orientation.
+const screenKey = () => { const a = Math.round(Math.min(screen.width, screen.height)), b = Math.round(Math.max(screen.width, screen.height)); return a + 'x' + b; };
+const bigScreen = () => Math.min(screen.width, screen.height) >= 700;
+function perScreen(name) { const all = S.settings[name] || (S.settings[name] = {}); return all[screenKey()] || (all[screenKey()] = {}); }
+// Both strips show whenever each can have at least 150 pt after the top bar, the bridge band and the divider.
+// A small margin either way keeps the layout from flipping back and forth at the edge.
+function fitsBoth() {
+  const app = $('#app'), bar = $('.bar'), bridge = $('.bridge');
+  const bridgeH = ses.roomy ? bridge.offsetHeight : (window.innerWidth < 600 ? 128 : 92);
+  const each = (app.clientHeight - bar.offsetHeight - bridgeH - 20 - 14) / 2;
+  return ses.roomy ? each >= 144 : each >= 150;
+}
 function layout() {
-  ses.roomy = window.innerWidth >= 600 && window.innerHeight >= 540;
+  ses.roomy = fitsBoth();
   const app = $('#app');
+  const split = perScreen('split').share || 0.5;
+  app.style.setProperty('--top', split + 'fr'); app.style.setProperty('--bot', (1 - split) + 'fr');
   app.classList.toggle('roomy', ses.roomy); app.classList.toggle('compact', !ses.roomy);
   app.classList.toggle('detailed', detailed());
   document.querySelectorAll('.strip').forEach((el) => el.classList.toggle('active', el.dataset.side === ses.view));
@@ -1880,22 +1951,37 @@ function renderSource() {
   let iv = '';
   if (detailed() && A && !A.empty) iv = A.notes.map((n, i) => esc(n.nameOct) + (A.intervals[i] ? `<i class="${A.intervals[i].rub ? 'rub' : ''}">${A.intervals[i].short}${A.intervals[i].rub ? ' rub' : ''}</i>` : '')).join('');
   const capoOn = !piano && S.work.srcCapos.length;
-  $('#srcRow').innerHTML = `<span class="rubric">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
-    (piano ? `<button class="iconbtn" data-act="oct" data-d="-1" aria-label="Octave down">${ICON.left}</button><button class="iconbtn" data-act="oct" data-d="1" aria-label="Octave up">${ICON.right}</button>`
-      : `<button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
+  $('#srcRow').innerHTML = `<span class="rubric srcname">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
+    `<button class="iconbtn" data-act="view" data-d="-1" aria-label="${piano ? 'Show lower keys' : 'Show lower frets'}">${ICON.left}</button><button class="iconbtn" data-act="view" data-d="1" aria-label="${piano ? 'Show higher keys' : 'Show higher frets'}">${ICON.right}</button>` +
+    `<button class="txtbtn" data-act="octchord" data-d="-1" id="octDown" aria-label="Move the chord down an octave">Oct ↓</button><button class="txtbtn" data-act="octchord" data-d="1" id="octUp" aria-label="Move the chord up an octave">Oct ↑</button>` +
+    (piano ? '' : `<button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
     `<button class="txtbtn" data-act="clear">Clear</button>`;
   const W = box.clientWidth, H = box.clientHeight;
   if (W < 20 || H < 20) return;
   const keep = box.scrollLeft, st = statusMap();
   if (piano) {
-    const ww = W / (ses.roomy ? 22 : 15);
-    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww, H, id: 'src', notes: keyNotes(A, S.work.piano, A && A.top ? A.top.pitch : -1, A && A.bass ? A.bass.pitch : -1, st) });
-    if (ses.kbInit !== 'piano' || ses.kbW !== ww) { box.scrollLeft = GEO.src.xOf(48); ses.kbInit = 'piano'; ses.kbW = ww; } else box.scrollLeft = keep;
+    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww: keyWidth(W), H, id: 'src', notes: keyNotes(A, S.work.piano, A && A.top ? A.top.pitch : -1, A && A.bass ? A.bass.pitch : -1, st) });
   } else {
-    const vis = visibleFrets(), cw = (W - 56) / vis, fc = Math.min(inst.fretCount || 22, 24);
+    const cw = fretWidth(W), fc = Math.min(inst.fretCount || 22, 24);
     box.innerHTML = drawFretboard({ inst, capos: S.work.srcCapos, fing: srcFing(), start: 0, count: fc, W: 56 + cw * fc, H, A, status: st, top: A && A.top ? A.top.pitch : -1, bass: A && A.bass ? A.bass.pitch : -1, id: 'src' });
-    box.scrollLeft = ses.kbInit === inst.id ? keep : 0; ses.kbInit = inst.id;
   }
+  box.scrollLeft = ses.fit.src ? chordScroll('src', box, piano ? S.work.piano : srcFing()) : keep;
+  ses.fit.src = false;
+  updateMoveButtons();
+}
+// Where to scroll so the entered notes are in view: centred on a keyboard, from just below the lowest fret on a
+// fretboard. With nothing entered, C3 on a keyboard and the nut on a fretboard.
+function chordScroll(id, box, notes) {
+  const g = GEO[id];
+  if (g.xOf) {
+    const ps = notes.slice().sort((a, b) => a - b);
+    if (!ps.length) return g.xOf(48);
+    return (g.xOf(ps[0]) + g.xOf(ps[ps.length - 1]) + g.ww) / 2 - box.clientWidth / 2;
+  }
+  const fr = notes.filter((f) => f > 0);
+  if (!fr.length) return 0;
+  const lo = Math.min(...fr), hi = Math.max(...fr), seen = Math.floor((box.clientWidth - g.zone) / g.cw);
+  return hi <= seen ? 0 : Math.max(0, (lo - 2) * g.cw);
 }
 function compText() {
   const c = ses.pending ? null : currentCard();
@@ -1985,17 +2071,17 @@ function drawEditor() {
   if (!box) return;
   const W = box.clientWidth, H = box.clientHeight, keep = box.scrollLeft, A = ses.A;
   if (isPiano(tgt)) {
-    const ww = W / (ses.roomy ? 22 : 15), ps = ses.editing.pitches.slice().sort((a, b) => a - b);
-    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww, H, id: 'edit', notes: keyNotes(A, ps, ps[ps.length - 1], ps[0]) });
-    box.scrollLeft = ses.editing.init ? keep : GEO.edit.xOf(48);
+    const ps = ses.editing.pitches.slice().sort((a, b) => a - b);
+    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww: keyWidth(W), H, id: 'edit', notes: keyNotes(A, ps, ps[ps.length - 1], ps[0]) });
+    box.scrollLeft = ses.editing.init && !ses.fit.edit ? keep : chordScroll('edit', box, ps.length ? ps : S.work.piano);
   } else {
-    const vis = visibleFrets(), cw = (W - 56) / vis, fc = Math.min(tgt.fretCount || 22, 24);
+    const cw = fretWidth(W), fc = Math.min(tgt.fretCount || 22, 24);
     const P = E.prepare(tgt, S.work.tgtCapos), mains = [];
     ses.editing.fing.forEach((f, c) => { if (f != null && f >= 0) { const o = f === 0 ? P.open[c] : P.fret[c][f]; if (o) mains.push(o.main); } });
     box.innerHTML = drawFretboard({ inst: tgt, capos: S.work.tgtCapos, fing: ses.editing.fing, start: 0, count: fc, W: 56 + cw * fc, H, A, top: Math.max(-1, ...mains), bass: Math.min(999, ...mains), id: 'edit' });
-    box.scrollLeft = ses.editing.init ? keep : 0;
+    box.scrollLeft = ses.editing.init && !ses.fit.edit ? keep : chordScroll('edit', box, ses.editing.fing.map((f) => (f == null ? -1 : f)));
   }
-  ses.editing.init = true;
+  ses.editing.init = true; ses.fit.edit = false;
 }
 
 /* ───────── toast ───────── */
@@ -2036,7 +2122,7 @@ const ACT = {
   mode(el) { S.settings.mode = el.dataset.v; save(); render(); },
   playmode(el) { S.settings.play = el.dataset.v; save(); press('#segPlay', S.settings.play); },
   view(el) { ses.view = el.dataset.v; render(); },
-  oct(el) { const b = $('#srcScroll'); b.scrollBy({ left: +el.dataset.d * GEO.src.ww * 7, behavior: 'smooth' }); },
+  view(el) { const b = $('#srcScroll'), g = GEO.src; b.scrollBy({ left: +el.dataset.d * (g.ww ? g.ww * 7 : g.cw * 5), behavior: 'smooth' }); },
   clear() {
     if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
     save(true); recompute(); render();
@@ -2054,7 +2140,7 @@ const ACT = {
     S.settings.src = b; S.settings.tgt = a;
     [S.work.srcCapos, S.work.tgtCapos] = [S.work.tgtCapos, S.work.srcCapos];
     if (cur) { if (cur.kind === 'piano') S.work.piano = cur.pitches.slice(); else S.work.fing[b] = cur.fingering.map((f) => (f < 0 ? null : f)); }
-    ses.kbInit = false; save(); recompute(); render();
+    ses.fit.src = true; save(); recompute(); render();
   },
   showcomp() { if (ses.out) flashComp(); },
   applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(0, true); render(); toast('Capo applied. Remove it from the target instrument sheet.'); },
@@ -2121,17 +2207,15 @@ function usePick(i) {
   toast(res.custom ? 'Saved. Your voicing counts double.' : 'Pick saved.', { label: 'Save as test', act: 'savetest' });
 }
 
-document.addEventListener('pointerdown', () => Snd.unlock(), { passive: true });
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (el && !el.disabled) { const fn = ACT[el.dataset.act]; if (fn) fn(el, e); return; }
   const svg = e.target.closest('svg[data-board]');
-  if (svg) boardTap(svg.dataset.board, e, svg);
+  if (svg && isTap()) boardTap(svg.dataset.board, e, svg);
 });
 document.addEventListener('change', (e) => { const el = e.target.closest('[data-chg]'); if (el && CHG[el.dataset.chg]) CHG[el.dataset.chg](el); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
-let rsT = 0;
-window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { ses.kbInit = false; render(); }, 120); });
+
 
 </script>
 <script>
@@ -2258,7 +2342,8 @@ function settingsSheet() {
   const reach = `<div class="row"><span class="grow">Comfortable reach<span class="sub">Stretches up to this are easy.</span></span>${stepper('reach', st.comfortMm + ' mm', 'data-k="comfortMm"')}</div>
     <div class="row"><span class="grow">Impossible above<span class="sub">Shapes wider than this are never offered.</span></span>${stepper('reach', st.impossibleMm + ' mm', 'data-k="impossibleMm"')}</div>
     <div class="row"><span class="grow">Prefer easier<span class="sub">Adds difficulty into the ranking. Off, it only breaks near-ties.</span></span><button class="switch" data-act="easier" aria-pressed="${st.preferEasier}" aria-label="Prefer easier"><span></span></button></div>`;
-  const tune = `<div class="row"><span class="grow">A4 reference</span>${stepper('a4', st.a4 + ' Hz')}</div>`;
+  const tune = `<div class="row"><span class="grow">A4 reference</span>${stepper('a4', st.a4 + ' Hz')}</div>
+    <div class="row"><span class="grow">Test sound<span class="sub" id="sndState">Plays a C major chord and reports what the audio is doing.</span></span>${pill('Play', 'testsound')}</div>`;
   let w = '';
   for (const k of Object.keys(E.DEFAULT_WEIGHTS)) {
     const info = E.WEIGHT_INFO[k], v = S.weights[k] != null ? S.weights[k] : E.DEFAULT_WEIGHTS[k];
@@ -2369,7 +2454,7 @@ function loadWork(src, tgtId, capos) {
   if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
   else { if (!instr(src.instrument)) return toast('That instrument is no longer saved.'); S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
   if (tgtId && instr(tgtId)) { S.settings.tgt = tgtId; S.work.tgtCapos = clone(capos || []); }
-  ses.kbInit = false; save(); recompute(0, true); closeSheet(); render();
+  ses.fit.src = true; save(); recompute(0, true); closeSheet(); render();
 }
 
 /* backup */
@@ -2394,7 +2479,7 @@ Object.assign(ACT, {
   pickinstr(el, e) {
     if (e.target.closest('[data-act="editinstr"]')) return;
     S.settings[ses.sheetSide] = el.dataset.id; S.work[ses.sheetSide + 'Capos'] = [];
-    ses.kbInit = false; save(); recompute(); closeSheet(); render();
+    ses.fit.src = true; save(); recompute(); closeSheet(); render();
   },
   editinstr(el, e) {
     e.stopPropagation();
@@ -2443,7 +2528,7 @@ Object.assign(ACT, {
     else S.instruments[S.instruments.findIndex((i) => i.id === d.id)] = d;
     delete S.work.fing[d.id];
     S.settings[ses.sheetSide] = d.id; S.work[ses.sheetSide + 'Capos'] = [];
-    ses.kbInit = false; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
+    ses.fit.src = true; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
   },
   ddelete() {
     const id = ses.draft.id;
@@ -2502,8 +2587,17 @@ Object.assign(ACT, {
   bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => { markBackedUp(); toast('Backup copied.'); }, () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
   restoreok() {
     const o = ses.pendingRestore; if (!o) return;
-    S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.kbInit = false;
+    S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.fit.src = true;
     saveLocal(); schedulePush(); recompute(); closeSheet(); render(); toast('Backup restored.');
+  },
+  // Tells "broken" from "muted": if the audio runs but nothing is heard, the phone itself is silenced.
+  async testsound() {
+    const sched = await Snd.play(eventsOf(E.PIANO, [], { pitches: [60, 64, 67] }), true), st = Snd.state(), out = $('#sndState');
+    if (!out) return;
+    const mode = st.session === 'playback' ? ' It is set to play in Silent mode.' : st.session === 'not supported' ? ' This browser cannot play through Silent mode.' : '';
+    out.textContent = sched
+      ? `The audio is running.${mode} If you heard nothing, turn the volume up${st.session === 'playback' ? '' : ' or turn Silent mode off'}.`
+      : `The audio did not start (it is ${st.context}). Tap Play again. If it still fails, close the app and reopen it.`;
   },
   backupnow() { ACT.settings(); ACT.backup(); },
   restorecancel() { ses.pendingRestore = null; $('#bkArea').innerHTML = ''; },
@@ -2528,6 +2622,172 @@ document.addEventListener('paste', (e) => {
   if (t && t.includes('"Notations"')) restoreFrom(t);
 });
 
+</script>
+<script>
+/* js/space.js */
+/* SPACE — fitting the screen and moving around: layout after rotation, pinch zoom, the divider between the
+   strips, telling taps from drags, moving the view, moving the chord, and other shapes of the same notes. */
+
+/* Layout waits until the size has held for two frames (or 250 ms), so it never lays out mid-rotation. */
+let settleRun = 0;
+function settleThenLayout() {
+  const run = ++settleRun, app = $('#app'), t0 = performance.now();
+  let last = '', same = 0;
+  const step = () => {
+    if (run !== settleRun) return;
+    const vv = window.visualViewport, key = app.clientWidth + 'x' + app.clientHeight + (vv ? ':' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '');
+    same = key === last ? same + 1 : 0; last = key;
+    if (same >= 2 || performance.now() - t0 > 250) { ses.fit.src = true; ses.fit.edit = true; render(); return; }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+if (window.ResizeObserver) new ResizeObserver(() => { if (S) settleThenLayout(); }).observe(document.getElementById('app'));
+else window.addEventListener('resize', () => { if (S) settleThenLayout(); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if (S) settleThenLayout(); });
+
+/* Taps versus drags and pinches: a tap moves under 8 pt and lasts under 300 ms. */
+const touch = { x: 0, y: 0, t: 0, moved: false, gestureAt: 0 };
+document.addEventListener('pointerdown', (e) => { Object.assign(touch, { x: e.clientX, y: e.clientY, t: performance.now(), moved: false }); }, { passive: true, capture: true });
+document.addEventListener('pointermove', (e) => { if (Math.hypot(e.clientX - touch.x, e.clientY - touch.y) >= 8) touch.moved = true; }, { passive: true, capture: true });
+function isTap() { return !touch.moved && performance.now() - touch.t < 300 && Date.now() - touch.gestureAt > 350; }
+
+/* Pinch zoom on the keyboard (white keys 22–64 pt) and the fretboard (fret spacing), kept per screen. */
+let pinch = null, pinchFrame = 0;
+const boxOf = (t) => t && t.closest && t.closest('#srcScroll, #editScroll');
+document.addEventListener('touchstart', (e) => {
+  const box = boxOf(e.target);
+  if (!box || e.touches.length !== 2) return;
+  const [a, b] = e.touches, rect = box.getBoundingClientRect(), id = box.id === 'srcScroll' ? 'src' : 'edit', g = GEO[id];
+  if (!g) return;
+  const kind = g.ww ? 'kb' : 'fb', z0 = g.ww || g.cw, fx = (a.clientX + b.clientX) / 2 - rect.left, origin = g.ww ? 0 : g.zone;
+  pinch = { box, id, kind, d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), z0, fx, origin, anchor: (box.scrollLeft + fx - origin) / z0 };
+  touch.gestureAt = Date.now();
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!pinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  const [a, b] = e.touches, d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  const z = pinch.kind === 'kb' ? clamp(pinch.z0 * d / pinch.d0, 22, 64) : clamp(pinch.z0 * d / pinch.d0, 28, 140);
+  perScreen('zoom')[pinch.kind] = z;
+  touch.gestureAt = Date.now();
+  if (pinchFrame) return;
+  pinchFrame = requestAnimationFrame(() => {
+    pinchFrame = 0;
+    if (!pinch) return;
+    const zz = perScreen('zoom')[pinch.kind];
+    if (pinch.id === 'src') renderSource(); else drawEditor();
+    pinch.box.scrollLeft = pinch.origin + pinch.anchor * zz - pinch.fx;
+  });
+}, { passive: false });
+document.addEventListener('touchend', (e) => { if (pinch && e.touches.length < 2) { pinch = null; touch.gestureAt = Date.now(); save(); } }, { passive: true });
+// Stop Safari zooming the whole page instead.
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, (e) => { if (boxOf(e.target)) e.preventDefault(); }, { passive: false });
+
+/* The divider: drag to share the height between the strips (each at least 120 pt); double-tap to even them. */
+(function divider() {
+  const el = document.getElementById('divider');
+  if (!el) return;
+  let drag = null, lastUp = 0;
+  const apply = (share) => {
+    perScreen('split').share = share;
+    const app = $('#app'); app.style.setProperty('--top', share + 'fr'); app.style.setProperty('--bot', (1 - share) + 'fr');
+  };
+  el.addEventListener('pointerdown', (e) => {
+    const src = $('.strip[data-side="src"]'), tgt = $('.strip[data-side="tgt"]');
+    drag = { y0: e.clientY, a: src.offsetHeight, b: tgt.offsetHeight };
+    el.setPointerCapture(e.pointerId); el.classList.add('dragging');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const total = drag.a + drag.b, a = clamp(drag.a + e.clientY - drag.y0, 120, total - 120);
+    apply(a / total);
+  });
+  const end = () => {
+    if (!drag) return;
+    drag = null; el.classList.remove('dragging');
+    const now = Date.now();
+    if (now - lastUp < 320) apply(0.5);
+    lastUp = now;
+    save(); ses.fit.src = true; render();
+  };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    apply(clamp((perScreen('split').share || 0.5) + (e.key === 'ArrowUp' ? -0.05 : 0.05), 0.2, 0.8)); save(); render();
+  });
+})();
+
+/* Moving the chord by an octave. On a fretboard the same shape moves 12 frets if it fits; otherwise the closest
+   playable voicing of the moved notes takes its place, and the app says so. */
+function shapeShift(inst, capos, fing, d) {
+  const P = E.prepare(inst, capos), out = [];
+  for (let c = 0; c < P.n; c++) {
+    const f = fing[c];
+    if (f == null || f < 0) { out.push(f); continue; }
+    const o = f === 0 ? P.open[c] : P.fret[c][f];
+    const want = o.main + 12 * d;
+    let nf = null;
+    if (P.open[c].main === want) nf = 0;
+    else for (let k = P.minEff[c] + 1; k <= P.fretCount; k++) if (P.fret[c][k] && P.fret[c][k].main === want && !P.collide[c][k]) { nf = k; break; }
+    if (nf == null) return null;
+    out.push(nf);
+  }
+  const h = E.handShape(P, out.map((f) => (f == null ? -1 : f)));
+  return h.fingers <= 4 && h.span <= S.settings.impossibleMm ? out : null;
+}
+function rangeOf(inst, capos) {
+  if (isPiano(inst)) return [21, 108];
+  const P = E.prepare(inst, capos);
+  let lo = 999, hi = 0;
+  for (let c = 0; c < P.n; c++) { lo = Math.min(lo, P.open[c].main); const top = P.fret[c][P.fretCount]; if (top) hi = Math.max(hi, top.main); }
+  return [lo, hi];
+}
+function canMoveChord(d) {
+  const inst = side('src'), notes = ses.A && !ses.A.empty ? ses.A.notes.map((n) => n.pitch) : [];
+  if (!notes.length) return false;
+  const [lo, hi] = rangeOf(inst, S.work.srcCapos);
+  return d > 0 ? Math.max(...notes) + 12 <= hi : Math.min(...notes) - 12 >= lo;
+}
+function updateMoveButtons() {
+  for (const [id, d] of [['octDown', -1], ['octUp', 1]]) { const b = document.getElementById(id); if (b) b.disabled = !canMoveChord(d); }
+  const ns = document.getElementById('nextShape');
+  if (ns) ns.disabled = !(ses.A && !ses.A.empty);
+}
+Object.assign(ACT, {
+  async octchord(el) {
+    const d = +el.dataset.d, inst = side('src');
+    if (!canMoveChord(d)) return;
+    if (isPiano(inst)) S.work.piano = S.work.piano.map((p) => p + 12 * d);
+    else {
+      const fing = srcFing(), moved = shapeShift(inst, S.work.srcCapos, fing, d);
+      if (moved) S.work.fing[inst.id] = moved;
+      else {
+        const pitches = ses.A.notes.filter((n) => n.weight >= 1).map((n) => n.pitch + 12 * d);
+        const r = await Eng.call('translate', { source: { kind: 'piano', pitches }, target: inst, capos: S.work.srcCapos, options: opts() });
+        if (!r.results.length) return toast('No playable voicing an octave ' + (d > 0 ? 'up' : 'down') + ' here.');
+        S.work.fing[inst.id] = r.results[0].fingering.map((f) => (f < 0 ? null : f));
+        toast(`The shape doesn't fit an octave ${d > 0 ? 'up' : 'down'}, so this is the closest playable voicing.`);
+      }
+    }
+    ses.shapes = null; ses.fit.src = true; save(true); recompute(0, true); render();
+  },
+  // Same notes, next position: cycles through every other fingering of exactly these pitches, then back.
+  async nextshape() {
+    const inst = side('src'), cur = srcFing().map((f) => (f == null ? -1 : f)), key = (f) => f.join(',');
+    let sh = ses.shapes;
+    if (!sh || sh.inst !== inst.id || key(sh.list[sh.i].fingering) !== key(cur)) {
+      const alts = await Eng.call('sameNotes', { target: inst, capos: S.work.srcCapos, fingering: cur, options: opts() });
+      if (!alts.length) return toast('There is no other way to play exactly these notes here.');
+      sh = ses.shapes = { inst: inst.id, list: [{ fingering: cur }, ...alts], i: 0 };
+    }
+    sh.i = (sh.i + 1) % sh.list.length;
+    S.work.fing[inst.id] = sh.list[sh.i].fingering.map((f) => (f < 0 ? null : f));
+    ses.fit.src = true; save(true); recompute(0, true); render();
+    toast(sh.i === 0 ? 'Back to your shape.' : `Same notes, shape ${sh.i} of ${sh.list.length - 1}.`);
+  },
+});
 </script>
 <script>
 /* js/boot.js */

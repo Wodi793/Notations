@@ -1,6 +1,6 @@
 /* APP — the main screen: what is entered, what the engine returns, and drawing it. Everything musical is decided by Engine. */
 /* ───────── session ───────── */
-const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, kbInit: false, gen: 0, pending: false, trT: 0, flashNext: false };
+const ses = { A: null, out: null, card: 0, picked: null, custom: null, editing: null, view: 'src', capoHint: null, reasons: null, compT: 0, hintT: 0, reasonT: 0, roomy: true, fit: { src: true, edit: true }, gen: 0, pending: false, trT: 0, flashNext: false };
 const GEO = {};
 const instr = (id) => (id === 'piano' ? E.PIANO : preset(id) || S.instruments.find((i) => i.id === id) || E.TIPLE_TEMPLATES.find((i) => i.id === id));
 const side = (s) => instr(S.settings[s]) || (s === 'src' ? E.PIANO : preset('mandolin'));
@@ -84,6 +84,10 @@ function noteLabel(A, pitch) {
   return r ? r.name : E.pitchName(pitch, A && A.flat).replace(/-?\d+$/, '');
 }
 const visibleFrets = () => (ses.roomy ? 12 : 7);
+// White-key width and fret width in points: Bill's pinch zoom if he has set one, else two octaves (three on an
+// iPad) and 12 frets (7 when one strip shows).
+const keyWidth = (W) => clamp(perScreen('zoom').kb || W / (bigScreen() ? 21 : 14), 22, 64);
+const fretWidth = (W) => clamp(perScreen('zoom').fb || (W - 56) / visibleFrets(), 28, 140);
 
 // o: {inst, capos, fing, start, count, W, H, A, status:{pitch:status}, top, bass, id}
 function drawFretboard(o) {
@@ -181,9 +185,24 @@ function keyNotes(A, pitches, top, bass, statusOf) {
 }
 
 /* ───────── render ───────── */
+/* ───────── space, zoom and the divider ───────── */
+// Settings that depend on the screen are kept per screen (Duo outer, Duo inner, iPad), whatever the orientation.
+const screenKey = () => { const a = Math.round(Math.min(screen.width, screen.height)), b = Math.round(Math.max(screen.width, screen.height)); return a + 'x' + b; };
+const bigScreen = () => Math.min(screen.width, screen.height) >= 700;
+function perScreen(name) { const all = S.settings[name] || (S.settings[name] = {}); return all[screenKey()] || (all[screenKey()] = {}); }
+// Both strips show whenever each can have at least 150 pt after the top bar, the bridge band and the divider.
+// A small margin either way keeps the layout from flipping back and forth at the edge.
+function fitsBoth() {
+  const app = $('#app'), bar = $('.bar'), bridge = $('.bridge');
+  const bridgeH = ses.roomy ? bridge.offsetHeight : (window.innerWidth < 600 ? 128 : 92);
+  const each = (app.clientHeight - bar.offsetHeight - bridgeH - 20 - 14) / 2;
+  return ses.roomy ? each >= 144 : each >= 150;
+}
 function layout() {
-  ses.roomy = window.innerWidth >= 600 && window.innerHeight >= 540;
+  ses.roomy = fitsBoth();
   const app = $('#app');
+  const split = perScreen('split').share || 0.5;
+  app.style.setProperty('--top', split + 'fr'); app.style.setProperty('--bot', (1 - split) + 'fr');
   app.classList.toggle('roomy', ses.roomy); app.classList.toggle('compact', !ses.roomy);
   app.classList.toggle('detailed', detailed());
   document.querySelectorAll('.strip').forEach((el) => el.classList.toggle('active', el.dataset.side === ses.view));
@@ -206,22 +225,37 @@ function renderSource() {
   let iv = '';
   if (detailed() && A && !A.empty) iv = A.notes.map((n, i) => esc(n.nameOct) + (A.intervals[i] ? `<i class="${A.intervals[i].rub ? 'rub' : ''}">${A.intervals[i].short}${A.intervals[i].rub ? ' rub' : ''}</i>` : '')).join('');
   const capoOn = !piano && S.work.srcCapos.length;
-  $('#srcRow').innerHTML = `<span class="rubric">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
-    (piano ? `<button class="iconbtn" data-act="oct" data-d="-1" aria-label="Octave down">${ICON.left}</button><button class="iconbtn" data-act="oct" data-d="1" aria-label="Octave up">${ICON.right}</button>`
-      : `<button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
+  $('#srcRow').innerHTML = `<span class="rubric srcname">Source · ${esc(inst.name)}</span><span class="grow ivals">${iv}</span>` +
+    `<button class="iconbtn" data-act="view" data-d="-1" aria-label="${piano ? 'Show lower keys' : 'Show lower frets'}">${ICON.left}</button><button class="iconbtn" data-act="view" data-d="1" aria-label="${piano ? 'Show higher keys' : 'Show higher frets'}">${ICON.right}</button>` +
+    `<button class="txtbtn" data-act="octchord" data-d="-1" id="octDown" aria-label="Move the chord down an octave">Oct ↓</button><button class="txtbtn" data-act="octchord" data-d="1" id="octUp" aria-label="Move the chord up an octave">Oct ↑</button>` +
+    (piano ? '' : `<button class="txtbtn" data-act="nextshape" id="nextShape" aria-label="Same notes, next position"><span class="long">Next shape</span><span class="short">Shape</span></button><button class="txtbtn ${capoOn ? 'on' : ''}" data-act="instr" data-side="src">Capo${capoOn ? ' ' + S.work.srcCapos.map((c) => c.fret).join('+') : ''}</button>`) +
     `<button class="txtbtn" data-act="clear">Clear</button>`;
   const W = box.clientWidth, H = box.clientHeight;
   if (W < 20 || H < 20) return;
   const keep = box.scrollLeft, st = statusMap();
   if (piano) {
-    const ww = W / (ses.roomy ? 22 : 15);
-    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww, H, id: 'src', notes: keyNotes(A, S.work.piano, A && A.top ? A.top.pitch : -1, A && A.bass ? A.bass.pitch : -1, st) });
-    if (ses.kbInit !== 'piano' || ses.kbW !== ww) { box.scrollLeft = GEO.src.xOf(48); ses.kbInit = 'piano'; ses.kbW = ww; } else box.scrollLeft = keep;
+    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww: keyWidth(W), H, id: 'src', notes: keyNotes(A, S.work.piano, A && A.top ? A.top.pitch : -1, A && A.bass ? A.bass.pitch : -1, st) });
   } else {
-    const vis = visibleFrets(), cw = (W - 56) / vis, fc = Math.min(inst.fretCount || 22, 24);
+    const cw = fretWidth(W), fc = Math.min(inst.fretCount || 22, 24);
     box.innerHTML = drawFretboard({ inst, capos: S.work.srcCapos, fing: srcFing(), start: 0, count: fc, W: 56 + cw * fc, H, A, status: st, top: A && A.top ? A.top.pitch : -1, bass: A && A.bass ? A.bass.pitch : -1, id: 'src' });
-    box.scrollLeft = ses.kbInit === inst.id ? keep : 0; ses.kbInit = inst.id;
   }
+  box.scrollLeft = ses.fit.src ? chordScroll('src', box, piano ? S.work.piano : srcFing()) : keep;
+  ses.fit.src = false;
+  updateMoveButtons();
+}
+// Where to scroll so the entered notes are in view: centred on a keyboard, from just below the lowest fret on a
+// fretboard. With nothing entered, C3 on a keyboard and the nut on a fretboard.
+function chordScroll(id, box, notes) {
+  const g = GEO[id];
+  if (g.xOf) {
+    const ps = notes.slice().sort((a, b) => a - b);
+    if (!ps.length) return g.xOf(48);
+    return (g.xOf(ps[0]) + g.xOf(ps[ps.length - 1]) + g.ww) / 2 - box.clientWidth / 2;
+  }
+  const fr = notes.filter((f) => f > 0);
+  if (!fr.length) return 0;
+  const lo = Math.min(...fr), hi = Math.max(...fr), seen = Math.floor((box.clientWidth - g.zone) / g.cw);
+  return hi <= seen ? 0 : Math.max(0, (lo - 2) * g.cw);
 }
 function compText() {
   const c = ses.pending ? null : currentCard();
@@ -311,17 +345,17 @@ function drawEditor() {
   if (!box) return;
   const W = box.clientWidth, H = box.clientHeight, keep = box.scrollLeft, A = ses.A;
   if (isPiano(tgt)) {
-    const ww = W / (ses.roomy ? 22 : 15), ps = ses.editing.pitches.slice().sort((a, b) => a - b);
-    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww, H, id: 'edit', notes: keyNotes(A, ps, ps[ps.length - 1], ps[0]) });
-    box.scrollLeft = ses.editing.init ? keep : GEO.edit.xOf(48);
+    const ps = ses.editing.pitches.slice().sort((a, b) => a - b);
+    box.innerHTML = drawKeyboard({ lo: 21, hi: 108, ww: keyWidth(W), H, id: 'edit', notes: keyNotes(A, ps, ps[ps.length - 1], ps[0]) });
+    box.scrollLeft = ses.editing.init && !ses.fit.edit ? keep : chordScroll('edit', box, ps.length ? ps : S.work.piano);
   } else {
-    const vis = visibleFrets(), cw = (W - 56) / vis, fc = Math.min(tgt.fretCount || 22, 24);
+    const cw = fretWidth(W), fc = Math.min(tgt.fretCount || 22, 24);
     const P = E.prepare(tgt, S.work.tgtCapos), mains = [];
     ses.editing.fing.forEach((f, c) => { if (f != null && f >= 0) { const o = f === 0 ? P.open[c] : P.fret[c][f]; if (o) mains.push(o.main); } });
     box.innerHTML = drawFretboard({ inst: tgt, capos: S.work.tgtCapos, fing: ses.editing.fing, start: 0, count: fc, W: 56 + cw * fc, H, A, top: Math.max(-1, ...mains), bass: Math.min(999, ...mains), id: 'edit' });
-    box.scrollLeft = ses.editing.init ? keep : 0;
+    box.scrollLeft = ses.editing.init && !ses.fit.edit ? keep : chordScroll('edit', box, ses.editing.fing.map((f) => (f == null ? -1 : f)));
   }
-  ses.editing.init = true;
+  ses.editing.init = true; ses.fit.edit = false;
 }
 
 /* ───────── toast ───────── */
@@ -362,7 +396,7 @@ const ACT = {
   mode(el) { S.settings.mode = el.dataset.v; save(); render(); },
   playmode(el) { S.settings.play = el.dataset.v; save(); press('#segPlay', S.settings.play); },
   view(el) { ses.view = el.dataset.v; render(); },
-  oct(el) { const b = $('#srcScroll'); b.scrollBy({ left: +el.dataset.d * GEO.src.ww * 7, behavior: 'smooth' }); },
+  view(el) { const b = $('#srcScroll'), g = GEO.src; b.scrollBy({ left: +el.dataset.d * (g.ww ? g.ww * 7 : g.cw * 5), behavior: 'smooth' }); },
   clear() {
     if (isPiano(side('src'))) S.work.piano = []; else S.work.fing[side('src').id] = side('src').courses.map(() => null);
     save(true); recompute(); render();
@@ -380,7 +414,7 @@ const ACT = {
     S.settings.src = b; S.settings.tgt = a;
     [S.work.srcCapos, S.work.tgtCapos] = [S.work.tgtCapos, S.work.srcCapos];
     if (cur) { if (cur.kind === 'piano') S.work.piano = cur.pitches.slice(); else S.work.fing[b] = cur.fingering.map((f) => (f < 0 ? null : f)); }
-    ses.kbInit = false; save(); recompute(); render();
+    ses.fit.src = true; save(); recompute(); render();
   },
   showcomp() { if (ses.out) flashComp(); },
   applycapo() { if (!ses.capoHint) return; S.work.tgtCapos = clone(ses.capoHint.capos); save(); recompute(0, true); render(); toast('Capo applied. Remove it from the target instrument sheet.'); },
@@ -447,15 +481,13 @@ function usePick(i) {
   toast(res.custom ? 'Saved. Your voicing counts double.' : 'Pick saved.', { label: 'Save as test', act: 'savetest' });
 }
 
-document.addEventListener('pointerdown', () => Snd.unlock(), { passive: true });
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (el && !el.disabled) { const fn = ACT[el.dataset.act]; if (fn) fn(el, e); return; }
   const svg = e.target.closest('svg[data-board]');
-  if (svg) boardTap(svg.dataset.board, e, svg);
+  if (svg && isTap()) boardTap(svg.dataset.board, e, svg);
 });
 document.addEventListener('change', (e) => { const el = e.target.closest('[data-chg]'); if (el && CHG[el.dataset.chg]) CHG[el.dataset.chg](el); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
-let rsT = 0;
-window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(() => { ses.kbInit = false; render(); }, 120); });
+
 

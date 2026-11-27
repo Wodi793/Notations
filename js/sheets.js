@@ -120,7 +120,8 @@ function settingsSheet() {
   const reach = `<div class="row"><span class="grow">Comfortable reach<span class="sub">Stretches up to this are easy.</span></span>${stepper('reach', st.comfortMm + ' mm', 'data-k="comfortMm"')}</div>
     <div class="row"><span class="grow">Impossible above<span class="sub">Shapes wider than this are never offered.</span></span>${stepper('reach', st.impossibleMm + ' mm', 'data-k="impossibleMm"')}</div>
     <div class="row"><span class="grow">Prefer easier<span class="sub">Adds difficulty into the ranking. Off, it only breaks near-ties.</span></span><button class="switch" data-act="easier" aria-pressed="${st.preferEasier}" aria-label="Prefer easier"><span></span></button></div>`;
-  const tune = `<div class="row"><span class="grow">A4 reference</span>${stepper('a4', st.a4 + ' Hz')}</div>`;
+  const tune = `<div class="row"><span class="grow">A4 reference</span>${stepper('a4', st.a4 + ' Hz')}</div>
+    <div class="row"><span class="grow">Test sound<span class="sub" id="sndState">Plays a C major chord and reports what the audio is doing.</span></span>${pill('Play', 'testsound')}</div>`;
   let w = '';
   for (const k of Object.keys(E.DEFAULT_WEIGHTS)) {
     const info = E.WEIGHT_INFO[k], v = S.weights[k] != null ? S.weights[k] : E.DEFAULT_WEIGHTS[k];
@@ -231,7 +232,7 @@ function loadWork(src, tgtId, capos) {
   if (src.kind === 'piano') { S.settings.src = 'piano'; S.work.piano = (src.pitches || E.parseNotes(src.notes)).slice(); }
   else { if (!instr(src.instrument)) return toast('That instrument is no longer saved.'); S.settings.src = src.instrument; S.work.fing[src.instrument] = src.fingering.map((f) => (f < 0 ? null : f)); S.work.srcCapos = clone(src.capos || []); }
   if (tgtId && instr(tgtId)) { S.settings.tgt = tgtId; S.work.tgtCapos = clone(capos || []); }
-  ses.kbInit = false; save(); recompute(0, true); closeSheet(); render();
+  ses.fit.src = true; save(); recompute(0, true); closeSheet(); render();
 }
 
 /* backup */
@@ -256,7 +257,7 @@ Object.assign(ACT, {
   pickinstr(el, e) {
     if (e.target.closest('[data-act="editinstr"]')) return;
     S.settings[ses.sheetSide] = el.dataset.id; S.work[ses.sheetSide + 'Capos'] = [];
-    ses.kbInit = false; save(); recompute(); closeSheet(); render();
+    ses.fit.src = true; save(); recompute(); closeSheet(); render();
   },
   editinstr(el, e) {
     e.stopPropagation();
@@ -305,7 +306,7 @@ Object.assign(ACT, {
     else S.instruments[S.instruments.findIndex((i) => i.id === d.id)] = d;
     delete S.work.fing[d.id];
     S.settings[ses.sheetSide] = d.id; S.work[ses.sheetSide + 'Capos'] = [];
-    ses.kbInit = false; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
+    ses.fit.src = true; save(); recompute(); closeSheet(); render(); toast('Saved as your instrument.');
   },
   ddelete() {
     const id = ses.draft.id;
@@ -364,8 +365,17 @@ Object.assign(ACT, {
   bkcopy() { const t = $('#bkText'); t.select(); try { navigator.clipboard.writeText(t.value).then(() => { markBackedUp(); toast('Backup copied.'); }, () => toast('Select the text and copy it by hand.')); } catch (e) { toast('Select the text and copy it by hand.'); } },
   restoreok() {
     const o = ses.pendingRestore; if (!o) return;
-    S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.kbInit = false;
+    S = migrate(o.state); S.updatedAt = Date.now(); ses.pendingRestore = null; ses.lab = null; ses.fit.src = true;
     saveLocal(); schedulePush(); recompute(); closeSheet(); render(); toast('Backup restored.');
+  },
+  // Tells "broken" from "muted": if the audio runs but nothing is heard, the phone itself is silenced.
+  async testsound() {
+    const sched = await Snd.play(eventsOf(E.PIANO, [], { pitches: [60, 64, 67] }), true), st = Snd.state(), out = $('#sndState');
+    if (!out) return;
+    const mode = st.session === 'playback' ? ' It is set to play in Silent mode.' : st.session === 'not supported' ? ' This browser cannot play through Silent mode.' : '';
+    out.textContent = sched
+      ? `The audio is running.${mode} If you heard nothing, turn the volume up${st.session === 'playback' ? '' : ' or turn Silent mode off'}.`
+      : `The audio did not start (it is ${st.context}). Tap Play again. If it still fails, close the app and reopen it.`;
   },
   backupnow() { ACT.settings(); ACT.backup(); },
   restorecancel() { ses.pendingRestore = null; $('#bkArea').innerHTML = ''; },
